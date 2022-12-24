@@ -1,5 +1,5 @@
 use std::io::prelude::*;
-use std::io::{Error, ErrorKind};
+use std::io::ErrorKind;
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
 
@@ -26,6 +26,10 @@ impl Net {
         }
     }
 
+    pub fn open(&mut self, sock_path: &str) {
+        self.stream = Net::connect(sock_path); // 이전 소켓 있을 때?
+    }
+
     fn disconnect(&mut self) {
         let stream = match self.stream {
             Some(ref sock) => sock,
@@ -37,11 +41,11 @@ impl Net {
             .expect("connection shutdown failed");
     }
 
-    fn send_command(&mut self, words: Vec<&str>) -> std::io::Result<()> {
+    fn send_command(&mut self, words: Vec<&str>) -> Result<(), std::io::Error> {
         let mut stream = match self.stream {
             Some(ref sock) => sock,
             None => {
-                return Err(Error::new(
+                return Err(std::io::Error::new(
                     ErrorKind::NotConnected,
                     format!("{} refused connection", self.sock_path),
                 ))
@@ -54,11 +58,11 @@ impl Net {
         Ok(())
     }
 
-    fn recv_response(&mut self) -> std::io::Result<()> {
+    fn recv_response(&mut self) -> Result<(), std::io::Error> {
         let mut stream = match self.stream {
             Some(ref sock) => sock,
             None => {
-                return Err(Error::new(
+                return Err(std::io::Error::new(
                     ErrorKind::NotConnected,
                     format!("{} refused connection", self.sock_path),
                 ))
@@ -82,11 +86,11 @@ impl Net {
         let net = self;
 
         if let Err(e) = net.send_command(words) {
-            println!("Service Temporary Unavailable: {e:?}");
+            eprintln!("Service Temporary Unavailable: {e:?}");
             net.disconnect();
         }
         if let Err(e) = net.recv_response() {
-            println!("Service Temporary Unavailable: {e:?}");
+            eprintln!("Service Temporary Unavailable: {e:?}");
             net.disconnect();
         }
     }

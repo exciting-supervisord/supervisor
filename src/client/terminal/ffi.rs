@@ -12,6 +12,7 @@ pub fn getch() -> u8 {
     let size = std::mem::size_of::<termios>();
 
     unsafe {
+        // 에러 처리?
         tcgetattr(0, otermp);
         memcpy(termp as *mut c_void, otermp as *mut c_void, size);
         term.c_lflag &= !(ICANON | ECHO);

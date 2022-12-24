@@ -28,8 +28,12 @@ fn check_command(line: &str) -> Result<Vec<&str>, ()> {
             format!("Error: version accepts no arguments"),
             words,
         )),
-        "add" | "remove" | "avail" | "status" | "open" | "reload" | "shutdown" | "update"
-        | "log" | "quit" | "exit" | "help" => Ok(words),
+        "open" => Ok(check_arguments(
+            format!("ERROR: path must be /path/to/socket"),
+            words,
+        )),
+        "add" | "remove" | "avail" | "status" | "reload" | "shutdown" | "update" | "log"
+        | "quit" | "exit" | "help" => Ok(words),
         _ => Err(()),
     }
 }
@@ -47,7 +51,7 @@ fn print_help(words: Vec<&str>) {
         "start" => println!("{}", command_messages::HELP_START),
         "stop" => println!("{}", command_messages::HELP_STOP),
         "status" => println!("{}", command_messages::HELP_STATUS),
-        // "open" => println!("{}", help_messages::HELP_AVAIL),
+        "open" => println!("{}", command_messages::HELP_OPEN),
         // "reload" => println!("{}", help_messages::HELP_AVAIL),
         "shutdown" => println!("{}", command_messages::HELP_SHUTDOWN),
         "update" => println!("{}", command_messages::HELP_UPDATE),
@@ -58,7 +62,7 @@ fn print_help(words: Vec<&str>) {
         "help" => println!("{}", command_messages::HELP_HELP),
         _ => {
             let s = words[1..].join(" ");
-            println!("*** No help on {}", s);
+            eprintln!("*** No help on {}", s);
         }
     }
 }
@@ -82,6 +86,7 @@ pub fn client_main() {
             Ok(words) => match words[0] {
                 "help" => print_help(words),
                 "version" => print_version(),
+                "open" => net.open(words[1]),
                 "exit" | "quit" => process::exit(0),
                 _ => net.communicate_with_server(words),
             },
@@ -91,7 +96,6 @@ pub fn client_main() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_client_main() {}

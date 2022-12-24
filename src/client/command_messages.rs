@@ -44,3 +44,7 @@ pub const HELP_START: &'static str = "\
 start <name>		Start a process
 start <name> <name>	Start multiple processes or groups
 start all		Start all processes";
+
+pub const HELP_OPEN: &'static str = "\
+open <path> 	Connect to a remote supervisord process.
+		(for UNIX domain socket, use /path/to/socket)";
