@@ -73,14 +73,15 @@ impl Terminal {
     fn record_history(&mut self) -> String {
         let index = self.history_index;
         let history = &mut self.history;
-        let s = "";
         if index != 0 {
             history[0] = history[index].clone();
-            let s = &history[index].buffer;
-        } else if history[0].buffer.is_empty() {
-            history.remove(0);
         }
-        s.to_string()
+        if history[0].buffer.is_empty() {
+            history.remove(0);
+            "".to_string()
+        } else {
+            history[0].buffer.to_string()
+        }
     }
 
     fn line_init(&mut self) {
@@ -124,13 +125,13 @@ impl Terminal {
                 }
             }
         }
+        println!();
         self.record_history()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test() {}

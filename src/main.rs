@@ -1,10 +1,11 @@
-mod terminal;
+mod client;
+mod server;
 
-use terminal::Terminal;
+use client::client_main;
+use server::server_main;
+use std::{thread, time};
+
 fn main() {
-    let mut t = Terminal::new("prompt>");
-
-    loop {
-        println!("\n{}", t.getline());
-    }
+    thread::spawn(|| client_main());
+    server_main();
 }
