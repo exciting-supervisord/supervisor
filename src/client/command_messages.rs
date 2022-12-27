@@ -48,3 +48,6 @@ start all		Start all processes";
 pub const HELP_OPEN: &'static str = "\
 open <path> 	Connect to a remote supervisord process.
 		(for UNIX domain socket, use /path/to/socket)";
+
+pub const HELP_RELOAD: &'static str = "\
+reload 		Restart the remote supervisord.";

@@ -83,15 +83,14 @@ impl Net {
     }
 
     pub fn communicate_with_server(&mut self, words: Vec<&str>) {
-        let net = self;
-
-        if let Err(e) = net.send_command(words) {
+        if let Err(e) = self.send_command(words) {
             eprintln!("Service Temporary Unavailable: {e:?}");
-            net.disconnect();
+            self.disconnect();
         }
-        if let Err(e) = net.recv_response() {
+        if let Err(e) = self.recv_response() {
             eprintln!("Service Temporary Unavailable: {e:?}");
-            net.disconnect();
+            self.disconnect();
         }
+        self.stream = Net::connect(self.sock_path); // FIXME keep-alive or closed ?
     }
 }

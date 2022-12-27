@@ -7,8 +7,8 @@ use std::process;
 use std::{thread, time};
 use terminal::Terminal;
 
-fn check_arguments(error_message: String, words: Vec<&str>) -> Vec<&str> {
-    if words.len() == 1 {
+fn check_arguments(error_message: String, words: Vec<&str>, count: usize) -> Vec<&str> {
+    if words.len() != count + 1 {
         println!("{}", error_message);
         vec!["help", words[0]]
     } else {
@@ -20,20 +20,23 @@ fn check_command(line: &str) -> Result<Vec<&str>, ()> {
     let words: Vec<&str> = line.split(' ').filter(|x| !x.is_empty()).collect();
 
     match words[0] {
-        "start" | "stop" | "restart" => Ok(check_arguments(
-            format!("Error: {} requires a process name", words[0].to_owned()),
+        "version" | "reload" => Ok(check_arguments(
+            format!("Error: {} accepts no arguments", words[0].to_owned()),
             words,
-        )),
-        "version" => Ok(check_arguments(
-            format!("Error: version accepts no arguments"),
-            words,
+            0,
         )),
         "open" => Ok(check_arguments(
             format!("ERROR: path must be /path/to/socket"),
             words,
+            1,
         )),
-        "add" | "remove" | "avail" | "status" | "reload" | "shutdown" | "update" | "log"
-        | "quit" | "exit" | "help" => Ok(words),
+        "start" | "stop" | "restart" => Ok(check_arguments(
+            format!("Error: {} requires a process name", words[0].to_owned()),
+            words,
+            1,
+        )),
+        "add" | "remove" | "avail" | "status" | "shutdown" | "update" | "log" | "quit" | "exit"
+        | "help" => Ok(words),
         _ => Err(()),
     }
 }
@@ -52,7 +55,7 @@ fn print_help(words: Vec<&str>) {
         "stop" => println!("{}", command_messages::HELP_STOP),
         "status" => println!("{}", command_messages::HELP_STATUS),
         "open" => println!("{}", command_messages::HELP_OPEN),
-        // "reload" => println!("{}", help_messages::HELP_AVAIL),
+        "reload" => println!("{}", command_messages::HELP_RELOAD),
         "shutdown" => println!("{}", command_messages::HELP_SHUTDOWN),
         "update" => println!("{}", command_messages::HELP_UPDATE),
         "log" => println!("{}", command_messages::HELP_AVAIL), // FIXME

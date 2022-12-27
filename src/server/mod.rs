@@ -32,6 +32,7 @@ fn handle_client(mut stream: UnixStream) {
 }
 
 pub fn server_main() {
+    println!("server: started");
     let listener = match UnixListener::bind("/tmp/supervisor.sock") {
         Ok(l) => l,
         Err(e) => {
@@ -53,4 +54,6 @@ pub fn server_main() {
             }
         }
     }
+
+    println!("server: died");
 }
