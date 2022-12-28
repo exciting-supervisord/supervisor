@@ -74,7 +74,7 @@ fn print_version() {
     println!("Which version must be printed?"); // FIXME
 }
 
-pub fn client_main() {
+fn main() {
     thread::sleep(time::Duration::from_millis(1000));
     let mut t = Terminal::new("supervisor>");
     let mut net = Net::new("/tmp/supervisor.sock");
