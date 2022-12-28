@@ -1,7 +1,9 @@
 extern crate jsonrpc;
 
-use jsonrpc::simple_uds::{self, UdsTransport};
+use jsonrpc::simple_uds::UdsTransport;
 use jsonrpc::Client;
+use serde_json::value::RawValue;
+use std::error::Error;
 
 pub struct Net {
     sock_path: &'static str,
@@ -22,22 +24,52 @@ impl Net {
 
     fn disconnect(&mut self) {}
 
-    fn send_command(&mut self, words: Vec<&str>) -> Result<(), std::io::Error> {
-        Ok(())
+    fn arguments_to_params(&self, words: &Vec<&str>) -> Result<Vec<Box<RawValue>>, Box<dyn Error>> {
+        let mut v: Vec<Box<RawValue>> = Default::default();
+        if words.len() == 1 {
+            return Ok(v);
+        }
+
+        let mut s = String::new();
+        s.push_str("[ ");
+        s.push_str("\"");
+        s.push_str(words[0]);
+        s.push_str("\"");
+        for w in words[1..].iter() {
+            s.push_str(", \"");
+            s.push_str(w);
+            s.push_str("\"");
+        }
+        s.push_str(" ]");
+        v.push(RawValue::from_string(s)?);
+        Ok(v)
     }
 
-    fn recv_response(&mut self) -> Result<(), std::io::Error> {
-        Ok(())
+    pub fn health_check(&self) -> Result<(), Box<dyn Error>> {
+        let request = self.client.build_request("health_check", &[]);
+        let response = self.client.send_request(request);
+
+        match response {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                eprintln!("{} refused connection", self.sock_path);
+                Err(Box::new(e))
+            }
+        }
     }
 
-    pub fn communicate_with_server(&mut self, words: Vec<&str>) {
-        if let Err(e) = self.send_command(words) {
-            eprintln!("Service Temporary Unavailable: {e:?}");
-            self.disconnect();
-        }
-        if let Err(e) = self.recv_response() {
-            eprintln!("Service Temporary Unavailable: {e:?}");
-            self.disconnect();
-        }
+    pub fn communicate_with_server(&mut self, words: Vec<&str>) -> Result<(), Box<dyn Error>> {
+        let params = self.arguments_to_params(&words)?;
+        let request = self.client.build_request(words[0], &params);
+        // 소켓파일 없을 때 여기서 에러 날 듯..?
+        let respone = match self.client.send_request(request) {
+            Ok(o) => o,
+            Err(e) => panic!("68: {e}"),
+        };
+        match respone.result::<String>() {
+            Ok(o) => println!("{o}"),
+            Err(e) => eprintln!("{}", e),
+        };
+        Ok(())
     }
 }

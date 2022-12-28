@@ -11,6 +11,8 @@ nix = "0.26.1"
 rust-ini = "0.18.0"
 jsonrpc-ipc-server = "18.0.0"
 jsonrpc = {version = "0.14.0", features = ["simple_uds"]}
+jsonrpc-ipc-server = "15.0"
+serde_json = "1.0.91"
 
 [patch.crates-io]
 rust-ini = { git = "https://github.com/exciting-supervisord/rust-ini.git" }

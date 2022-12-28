@@ -1,13 +1,19 @@
+// pub const HELP: &'static str = "\
+// default commands (type help <topic>):
+// =====================================
+// add      exit     open     reload   restart  start    avail
+// remove   shutdown status   update   log      quit     stop     version";
+
 pub const HELP: &'static str = "\
 default commands (type help <topic>):
 =====================================
-add      exit     open     reload   restart  start    avail
-remove   shutdown status   update   log      quit     stop     version";
+exit     open     reload   restart  start    shutdown
+status   update   log      quit     stop     version";
 
 pub const HELP_HELP: &'static str = "\
 help \t\tPrint a list of available actions\nhelp <action>\tPrint help for <action>";
 
-pub const HELP_AVAIL: &'static str = "avail\t\t\tDisplay all configured processes";
+// pub const HELP_AVAIL: &'static str = "avail\t\t\tDisplay all configured processes";
 pub const HELP_QUIT: &'static str = "quit\tExit the supervisor shell.";
 pub const HELP_EXIT: &'static str = "exit\tExit the supervisor shell.";
 pub const HELP_SHUTDOWN: &'static str = "shutdown\t\tShut the remote supervisord down.";
@@ -18,11 +24,11 @@ version\t\t\tShow the version of the remote supervisord process";
 pub const HELP_UPDATE: &'static str = "\
 update\t\t\tReload config and add/remove as necessary, and will restart affected programs";
 
-pub const HELP_ADD: &'static str = "\
-add <name> [...]	Activates any updates in config for process/group";
+// pub const HELP_ADD: &'static str = "\
+// add <name> [...]	Activates any updates in config for process/group";
 
-pub const HELP_REMOVE: &'static str = "\
-remove <name> [...]	Removes process/group from active config";
+// pub const HELP_REMOVE: &'static str = "\
+// remove <name> [...]	Removes process/group from active config";
 
 pub const HELP_STATUS: &'static str = "\
 status <name>		Get status for a single process
