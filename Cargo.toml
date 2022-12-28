@@ -11,4 +11,12 @@ nix = "0.26.1"
 rust-ini = "0.18.0"
 
 [patch.crates-io]
-rust-ini = { path = "src/config/rust-ini" }
+rust-ini = { path = "src/lib/config/rust-ini" }
+
+[[bin]]
+name = "client"
+path = "src/client/main.rs"
+
+[[bin]]
+name = "server"
+path = "src/server/main.rs"
