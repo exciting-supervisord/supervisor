@@ -7,6 +7,7 @@ mod termios_ctor;
 
 use flushable::Flushable;
 use line_editor::LineEditor;
+use nix::errno;
 use std::collections::VecDeque;
 
 const UP: u8 = 0x41;
@@ -91,11 +92,11 @@ impl Terminal {
         self.history_index = 0;
     }
 
-    pub fn getline(&mut self) -> String {
+    pub fn getline(&mut self) -> Result<String, errno::Errno> {
         self.line_init();
         let mut state = LineState::CHAR;
         loop {
-            let ch = ffi::getch();
+            let ch = ffi::getch()?;
             let line_editor = &mut self.history[self.history_index];
 
             match state {
@@ -126,7 +127,7 @@ impl Terminal {
             }
         }
         println!();
-        self.record_history()
+        Ok(self.record_history())
     }
 }
 

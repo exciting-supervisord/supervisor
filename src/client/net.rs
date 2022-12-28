@@ -1,84 +1,32 @@
-use std::io::prelude::*;
-use std::io::ErrorKind;
-use std::net::Shutdown;
-use std::os::unix::net::UnixStream;
+extern crate jsonrpc;
+
+use jsonrpc::simple_uds::{self, UdsTransport};
+use jsonrpc::Client;
 
 pub struct Net {
     sock_path: &'static str,
-    stream: Option<UnixStream>,
+    client: Client,
 }
 
 impl Net {
     pub fn new(sock_path: &'static str) -> Self {
-        Net {
-            sock_path,
-            stream: Net::connect(sock_path),
-        }
-    }
-
-    fn connect(sock_path: &str) -> Option<UnixStream> {
-        match UnixStream::connect(sock_path) {
-            Ok(sock) => Some(sock),
-            Err(_) => {
-                eprintln!("{sock_path} refused connection");
-                None
-            }
-        }
+        let t = UdsTransport::new(sock_path); // ? 파일 없을 때?
+        let client = Client::with_transport(t);
+        Net { sock_path, client }
     }
 
     pub fn open(&mut self, sock_path: &str) {
-        self.stream = Net::connect(sock_path); // 이전 소켓 있을 때?
+        let t = UdsTransport::new(sock_path);
+        self.client = Client::with_transport(t);
     }
 
-    fn disconnect(&mut self) {
-        let stream = match self.stream {
-            Some(ref sock) => sock,
-            None => return,
-        };
-
-        stream
-            .shutdown(Shutdown::Both)
-            .expect("connection shutdown failed");
-    }
+    fn disconnect(&mut self) {}
 
     fn send_command(&mut self, words: Vec<&str>) -> Result<(), std::io::Error> {
-        let mut stream = match self.stream {
-            Some(ref sock) => sock,
-            None => {
-                return Err(std::io::Error::new(
-                    ErrorKind::NotConnected,
-                    format!("{} refused connection", self.sock_path),
-                ))
-            }
-        };
-
-        let mut line: String = words.join(" ");
-        line.push('\0');
-        stream.write_all(line.as_bytes())?;
         Ok(())
     }
 
     fn recv_response(&mut self) -> Result<(), std::io::Error> {
-        let mut stream = match self.stream {
-            Some(ref sock) => sock,
-            None => {
-                return Err(std::io::Error::new(
-                    ErrorKind::NotConnected,
-                    format!("{} refused connection", self.sock_path),
-                ))
-            }
-        };
-
-        let mut buf: [u8; 2] = [0; 2];
-        let mut response = String::new();
-        loop {
-            let count = stream.read(&mut buf)?;
-            if count == 0 {
-                break;
-            }
-            response.push_str(&buf.map(|x| x as char).iter().collect::<String>());
-        }
-        println!("{response}");
         Ok(())
     }
 
@@ -91,6 +39,5 @@ impl Net {
             eprintln!("Service Temporary Unavailable: {e:?}");
             self.disconnect();
         }
-        self.stream = Net::connect(self.sock_path); // FIXME keep-alive or closed ?
     }
 }

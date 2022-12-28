@@ -2,9 +2,11 @@ mod command_messages;
 mod net;
 mod terminal;
 
+extern crate lib;
+
 use net::Net;
+use std::error::Error;
 use std::process;
-use std::{thread, time};
 use terminal::Terminal;
 
 fn check_arguments(error_message: String, words: Vec<&str>, count: usize) -> Vec<&str> {
@@ -74,13 +76,13 @@ fn print_version() {
     println!("Which version must be printed?"); // FIXME
 }
 
-fn main() {
-    thread::sleep(time::Duration::from_millis(1000));
+fn main() -> Result<(), Box<dyn Error>> {
+    let sockfile = "/tmp/json-ipc-test.ipc";
     let mut t = Terminal::new("supervisor>");
-    let mut net = Net::new("/tmp/supervisor.sock");
+    let mut net = Net::new(sockfile);
 
     loop {
-        let line = t.getline();
+        let line = t.getline()?;
         if line.is_empty() {
             continue;
         }

@@ -10,6 +10,7 @@ libc = "0.2.0"
 nix = "0.26.1"
 rust-ini = "0.18.0"
 jsonrpc-ipc-server = "18.0.0"
+jsonrpc = {version = "0.14.0", features = ["simple_uds"]}
 
 [patch.crates-io]
 rust-ini = { git = "https://github.com/exciting-supervisord/rust-ini.git" }
