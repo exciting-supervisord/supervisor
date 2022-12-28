@@ -13,6 +13,10 @@ rust-ini = "0.18.0"
 [patch.crates-io]
 rust-ini = { path = "src/lib/config/rust-ini" }
 
+[lib]
+name = "lib"
+path = "src/lib/lib.rs"
+
 [[bin]]
 name = "client"
 path = "src/client/main.rs"
