@@ -11,7 +11,7 @@ nix = "0.26.1"
 rust-ini = "0.18.0"
 
 [patch.crates-io]
-rust-ini = { path = "src/lib/config/rust-ini" }
+rust-ini = { git = "https://github.com/exciting-supervisord/rust-ini.git" }
 
 [lib]
 name = "lib"
