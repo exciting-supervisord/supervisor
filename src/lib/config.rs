@@ -85,7 +85,6 @@ impl ProgramConfig {
     }
 
     fn parse_signal(k: &str, v: &str) -> Result<Signal, ConfigValueError> {
-        let valueError = ConfigValueError::new(k, v);
         match v {
             // TODO 시그널 전부...?
             "INT" => Ok(Signal::SIGINT),
@@ -93,13 +92,22 @@ impl ProgramConfig {
             "TERM" => Ok(Signal::SIGTERM),
             "KILL" => Ok(Signal::SIGKILL),
             "STOP" => Ok(Signal::SIGSTOP),
-            _ => Err(valueError),
+            _ => Err(ConfigValueError::new(k, v)),
         }
     }
 
     fn parse_umask(k: &str, v: &str) -> Result<u8, ConfigValueError> {
         let valueError = ConfigValueError::new(k, v);
         Ok(u8::from_str_radix(v, 8).map_err(|_| valueError)?)
+    }
+
+    fn parse_autorestart(k: &str, v: &str) -> Result<AutoRestart, ConfigValueError> {
+        match v {
+            "unexpected" => Ok(AutoRestart::Unexpected),
+            "always" => Ok(AutoRestart::Always),
+            "never" => Ok(AutoRestart::Never),
+            _ => Err(ConfigValueError::new(k, v)),
+        }
     }
 
     fn parse<T: std::str::FromStr>(k: &str, v: &str) -> Result<T, ConfigValueError> {
@@ -114,6 +122,7 @@ impl ProgramConfig {
                 "command" => config.command = v.split(' ').map(|x| x.to_owned()).collect(),
                 "numprocs" => config.numprocs = ProgramConfig::parse::<u32>(k, v)?,
                 "autostart" => config.autostart = ProgramConfig::parse::<bool>(k, v)?,
+                "autorestart" => config.autorestart = ProgramConfig::parse_autorestart(k, v)?,
                 "exitcodes" => config.exitcodes = ProgramConfig::parse_exitcodes(k, v)?,
                 "startsecs" => config.startsecs = ProgramConfig::parse::<u32>(k, v)?,
                 "startretries" => config.startretries = ProgramConfig::parse::<u32>(k, v)?,
@@ -319,6 +328,24 @@ mod tests {
     }
 
     #[test]
+    fn test_program_invalid_value_stopsignal() {
+        let c = Config::from("./src/lib/config/test/program_invalid_value_stopsignal.ini");
+        assert_eq!(
+            "configuration: invalid value: stopsignal: asdf",
+            c.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
+    fn test_program_invalid_value_autorestart() {
+        let c = Config::from("./src/lib/config/test/program_invalid_value_autorestart.ini");
+        assert_eq!(
+            "configuration: invalid value: autorestart: asdf",
+            c.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
     fn test_program_invalid_key() {
         let c = Config::from("./src/lib/config/test/program_invalid_key.ini");
         assert_eq!(
@@ -361,6 +388,9 @@ mod tests {
         programConfig.exitcodes.push(3);
         programConfig.umask = Some(146);
         programConfig.numprocs = 3;
+        programConfig.autostart = false;
+        programConfig.autorestart = AutoRestart::Never;
+        programConfig.stopsignal = Signal::SIGKILL;
 
         let c = Config::from("./src/lib/config/test/program.ini");
         assert_eq!(expected, c.unwrap())
