@@ -5,40 +5,68 @@ mod parser_ini;
 
 use config_error::*;
 use nix::sys::signal::Signal;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::vec::Vec;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum AutoRestart {
     Unexpected,
     Always,
     Never,
 }
 
+pub struct ProcessConfig {
+    pub name: String,
+    pub autostart: bool,
+    pub autorestart: AutoRestart,
+    pub exitcodes: Vec<i32>,
+    pub startsecs: u64,
+    pub startretries: u32,
+    pub stopsignal: Signal,
+    pub stopwaitsecs: u64,
+}
+
+impl ProcessConfig {
+    pub fn from(conf: &ProgramConfig) -> Self {
+        ProcessConfig {
+            name: conf.name.to_owned(),
+            autostart: conf.autostart,
+            autorestart: conf.autorestart,
+            exitcodes: conf.exitcodes.clone(),
+            startsecs: conf.startsecs,
+            startretries: conf.startretries,
+            stopsignal: conf.stopsignal,
+            stopwaitsecs: conf.stopwaitsecs,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct ProgramConfig {
-    command: Vec<String>,
-    numprocs: u32,
-    autostart: bool,
-    autorestart: AutoRestart,
-    exitcodes: Vec<u8>,
-    startsecs: u32,
-    startretries: u32,
-    stopsignal: Signal,
-    stopwaitsecs: u32,
-    stdout_logfile: String,
-    stderr_logfile: String,
-    directory: String,
-    umask: Option<u8>,
-    user: Option<String>,
-    environment: HashMap<String, String>,
+    pub name: String,
+    pub command: Vec<String>,
+    pub numprocs: u32,
+    pub autostart: bool,
+    pub autorestart: AutoRestart,
+    pub exitcodes: Vec<i32>,
+    pub startsecs: u64,
+    pub startretries: u32,
+    pub stopsignal: Signal,
+    pub stopwaitsecs: u64,
+    pub stdout_logfile: String,
+    pub stderr_logfile: String,
+    pub directory: String,
+    pub umask: Option<i32>,
+    pub user: Option<String>,
+    pub environment: HashMap<String, String>,
 }
 
 impl ProgramConfig {
     fn new() -> Self {
         let exitcodes = vec![0];
         ProgramConfig {
+            name: String::new(),
             command: Default::default(),
             numprocs: 1,
             autostart: false,
@@ -57,7 +85,7 @@ impl ProgramConfig {
         }
     }
 
-    fn parse_exitcodes(k: &str, v: &str) -> Result<Vec<u8>, ConfigValueError> {
+    fn parse_exitcodes(k: &str, v: &str) -> Result<Vec<i32>, ConfigValueError> {
         let sp: Vec<String> = v.split(',').map(|x| x.to_owned()).collect();
         let mut vec = Vec::new();
 
@@ -96,9 +124,9 @@ impl ProgramConfig {
         }
     }
 
-    fn parse_umask(k: &str, v: &str) -> Result<u8, ConfigValueError> {
-        let valueError = ConfigValueError::new(k, v);
-        Ok(u8::from_str_radix(v, 8).map_err(|_| valueError)?)
+    fn parse_umask(k: &str, v: &str) -> Result<i32, ConfigValueError> {
+        let value_error = ConfigValueError::new(k, v);
+        Ok(i32::from_str_radix(v, 8).map_err(|_| value_error)?)
     }
 
     fn parse_autorestart(k: &str, v: &str) -> Result<AutoRestart, ConfigValueError> {
@@ -111,8 +139,8 @@ impl ProgramConfig {
     }
 
     fn parse<T: std::str::FromStr>(k: &str, v: &str) -> Result<T, ConfigValueError> {
-        let valueError = ConfigValueError::new(k, v);
-        v.to_owned().parse::<T>().map_err(|_| valueError)
+        let value_error = ConfigValueError::new(k, v);
+        v.to_owned().parse::<T>().map_err(|_| value_error)
     }
 
     pub fn from(prop: &ini::Properties) -> Result<Self, Box<dyn Error>> {
@@ -124,10 +152,10 @@ impl ProgramConfig {
                 "autostart" => config.autostart = ProgramConfig::parse::<bool>(k, v)?,
                 "autorestart" => config.autorestart = ProgramConfig::parse_autorestart(k, v)?,
                 "exitcodes" => config.exitcodes = ProgramConfig::parse_exitcodes(k, v)?,
-                "startsecs" => config.startsecs = ProgramConfig::parse::<u32>(k, v)?,
+                "startsecs" => config.startsecs = ProgramConfig::parse::<u64>(k, v)?,
                 "startretries" => config.startretries = ProgramConfig::parse::<u32>(k, v)?,
                 "stopsignal" => config.stopsignal = ProgramConfig::parse_signal(k, v)?,
-                "stopwaitsecs" => config.stopwaitsecs = ProgramConfig::parse::<u32>(k, v)?,
+                "stopwaitsecs" => config.stopwaitsecs = ProgramConfig::parse::<u64>(k, v)?,
                 "stdout_logfile" => config.stdout_logfile = v.to_owned(),
                 "stderr_logfile" => config.stderr_logfile = v.to_owned(),
                 "directory" => config.directory = v.to_owned(),
@@ -145,15 +173,15 @@ impl ProgramConfig {
 }
 
 impl std::fmt::Display for ProgramConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct GeneralConfig {
-    sockfile: String,
-    pidfile: String,
+    pub sockfile: String,
+    pub pidfile: String,
 }
 
 impl GeneralConfig {
@@ -179,8 +207,8 @@ impl GeneralConfig {
 
 #[derive(Debug, PartialEq)]
 pub struct Config {
-    general: GeneralConfig,
-    programs: HashMap<String, ProgramConfig>,
+    pub general: GeneralConfig,
+    pub programs: HashMap<String, ProgramConfig>,
 }
 
 impl Config {
@@ -202,6 +230,16 @@ impl Config {
             }
         }
         Ok(Config { general, programs })
+    }
+
+    pub fn program_list(&self) -> HashSet<String> {
+        let mut v = HashSet::new();
+        self.programs
+            .iter()
+            .for_each(|(k, _)| match v.insert(k.to_owned()) {
+                _ => {}
+            });
+        v
     }
 }
 
@@ -374,23 +412,23 @@ mod tests {
             .programs
             .insert("a".to_owned(), ProgramConfig::new());
 
-        let programConfig = expected.programs.get_mut("a").unwrap();
-        programConfig.command.push("/bin/ls".to_owned());
-        programConfig
+        let program_config = expected.programs.get_mut("a").unwrap();
+        program_config.command.push("/bin/ls".to_owned());
+        program_config
             .environment
             .insert("A".to_owned(), "1".to_owned());
-        programConfig
+        program_config
             .environment
             .insert("B".to_owned(), "2".to_owned());
-        programConfig.exitcodes.pop();
-        programConfig.exitcodes.push(1);
-        programConfig.exitcodes.push(2);
-        programConfig.exitcodes.push(3);
-        programConfig.umask = Some(146);
-        programConfig.numprocs = 3;
-        programConfig.autostart = false;
-        programConfig.autorestart = AutoRestart::Never;
-        programConfig.stopsignal = Signal::SIGKILL;
+        program_config.exitcodes.pop();
+        program_config.exitcodes.push(1);
+        program_config.exitcodes.push(2);
+        program_config.exitcodes.push(3);
+        program_config.umask = Some(146);
+        program_config.numprocs = 3;
+        program_config.autostart = false;
+        program_config.autorestart = AutoRestart::Never;
+        program_config.stopsignal = Signal::SIGKILL;
 
         let c = Config::from("./src/lib/config/test/program.ini");
         assert_eq!(expected, c.unwrap())
