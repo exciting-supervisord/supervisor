@@ -1,96 +1,75 @@
-use std::io::prelude::*;
-use std::io::ErrorKind;
-use std::net::Shutdown;
-use std::os::unix::net::UnixStream;
+extern crate jsonrpc;
+
+use jsonrpc::simple_uds::UdsTransport;
+use jsonrpc::Client;
+use serde_json::value::RawValue;
+use std::error::Error;
 
 pub struct Net {
     sock_path: &'static str,
-    stream: Option<UnixStream>,
+    client: Client,
 }
 
 impl Net {
     pub fn new(sock_path: &'static str) -> Self {
-        Net {
-            sock_path,
-            stream: Net::connect(sock_path),
-        }
-    }
-
-    fn connect(sock_path: &str) -> Option<UnixStream> {
-        match UnixStream::connect(sock_path) {
-            Ok(sock) => Some(sock),
-            Err(_) => {
-                eprintln!("{sock_path} refused connection");
-                None
-            }
-        }
+        let t = UdsTransport::new(sock_path); // ? 파일 없을 때?
+        let client = Client::with_transport(t);
+        Net { sock_path, client }
     }
 
     pub fn open(&mut self, sock_path: &str) {
-        self.stream = Net::connect(sock_path); // 이전 소켓 있을 때?
+        let t = UdsTransport::new(sock_path);
+        self.client = Client::with_transport(t);
     }
 
-    fn disconnect(&mut self) {
-        let stream = match self.stream {
-            Some(ref sock) => sock,
-            None => return,
-        };
+    fn disconnect(&mut self) {}
 
-        stream
-            .shutdown(Shutdown::Both)
-            .expect("connection shutdown failed");
+    fn arguments_to_params(&self, words: &Vec<&str>) -> Result<Vec<Box<RawValue>>, Box<dyn Error>> {
+        let mut v: Vec<Box<RawValue>> = Default::default();
+        if words.len() == 1 {
+            return Ok(v);
+        }
+
+        let mut s = String::new();
+        s.push_str("[ ");
+        s.push_str("\"");
+        s.push_str(words[0]);
+        s.push_str("\"");
+        for w in words[1..].iter() {
+            s.push_str(", \"");
+            s.push_str(w);
+            s.push_str("\"");
+        }
+        s.push_str(" ]");
+        v.push(RawValue::from_string(s)?);
+        Ok(v)
     }
 
-    fn send_command(&mut self, words: Vec<&str>) -> Result<(), std::io::Error> {
-        let mut stream = match self.stream {
-            Some(ref sock) => sock,
-            None => {
-                return Err(std::io::Error::new(
-                    ErrorKind::NotConnected,
-                    format!("{} refused connection", self.sock_path),
-                ))
+    pub fn health_check(&self) -> Result<(), Box<dyn Error>> {
+        let request = self.client.build_request("health_check", &[]);
+        let response = self.client.send_request(request);
+
+        match response {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                eprintln!("{} refused connection", self.sock_path);
+                Err(Box::new(e))
             }
-        };
+        }
+    }
 
-        let mut line: String = words.join(" ");
-        line.push('\0');
-        stream.write_all(line.as_bytes())?;
+    pub fn communicate_with_server(&mut self, words: Vec<&str>) -> Result<(), Box<dyn Error>> {
+        let params = self.arguments_to_params(&words)?;
+        let request = self.client.build_request(words[0], &params);
+        // 소켓파일 없을 때 여기서 에러 날 듯..?
+        let respone = match self.client.send_request(request) {
+            Ok(o) => o,
+            Err(e) => panic!("68: {e}"),
+        };
+        match respone.result::<String>() {
+            Ok(o) => println!("{o}"),
+            Err(e) => eprintln!("{}", e),
+        };
         Ok(())
-    }
-
-    fn recv_response(&mut self) -> Result<(), std::io::Error> {
-        let mut stream = match self.stream {
-            Some(ref sock) => sock,
-            None => {
-                return Err(std::io::Error::new(
-                    ErrorKind::NotConnected,
-                    format!("{} refused connection", self.sock_path),
-                ))
-            }
-        };
-
-        let mut buf: [u8; 2] = [0; 2];
-        let mut response = String::new();
-        loop {
-            let count = stream.read(&mut buf)?;
-            if count == 0 {
-                break;
-            }
-            response.push_str(&buf.map(|x| x as char).iter().collect::<String>());
-        }
-        println!("{response}");
-        Ok(())
-    }
-
-    pub fn communicate_with_server(&mut self, words: Vec<&str>) {
-        if let Err(e) = self.send_command(words) {
-            eprintln!("Service Temporary Unavailable: {e:?}");
-            self.disconnect();
-        }
-        if let Err(e) = self.recv_response() {
-            eprintln!("Service Temporary Unavailable: {e:?}");
-            self.disconnect();
-        }
-        self.stream = Net::connect(self.sock_path); // FIXME keep-alive or closed ?
     }
 }
