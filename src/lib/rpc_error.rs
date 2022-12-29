@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum Error {
     FileFormat,
     Service,
@@ -17,3 +18,5 @@ impl std::fmt::Display for Error {
         }
     }
 }
+
+impl std::error::Error for Error {}

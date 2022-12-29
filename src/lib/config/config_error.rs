@@ -1,7 +1,5 @@
 use std::error::Error;
 
-use super::parser_ini;
-
 #[derive(Debug)]
 pub struct ConfigCommandError;
 
