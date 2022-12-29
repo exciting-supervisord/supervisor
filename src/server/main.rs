@@ -1,61 +1,25 @@
 mod core;
 
-use std::{
-    io::{Read, Write},
-    os::unix::net::{UnixListener, UnixStream},
-};
+use jsonrpc_ipc_server::jsonrpc_core::{IoHandler, Value, Params};
+use jsonrpc_ipc_server::ServerBuilder;
+use lib::config::Config;
 
-fn handle_client(mut stream: UnixStream) {
-    let mut buffer: [u8; 10] = [0; 10];
+use std::error::Error;
 
-    match stream.read(&mut buffer) {
-        Ok(_) => println!("server: {buffer:?}"),
-        Err(e) => {
-            println!("server: Couldn't read: {e:?}");
-            return;
-        }
-    };
+const CONF_FILE: &'static str = "./general.ini";
 
-    match stream.write_all(&mut buffer) {
-        Ok(_) => {}
-        Err(e) => {
-            println!("server: Couldn't write: {e:?}");
-            return;
-        }
-    };
+fn main() -> Result<(), Box<dyn Error>> {
+    let conf = Config::from(CONF_FILE)?;
 
-    match stream.write_all(&mut buffer) {
-        Ok(_) => {}
-        Err(e) => {
-            println!("server: Couldn't write: {e:?}");
-            return;
-        }
-    };
-}
+	let mut io = IoHandler::default();
+	io.add_method("add", |_params: Params| async {
+		Ok(Value::String("hello".to_owned()))
+	});
 
-fn main() {
-    println!("server: started");
-    let listener = match UnixListener::bind("/tmp/supervisor.sock") {
-        Ok(l) => l,
-        Err(e) => {
-            println!("{e:?}");
-            return;
-        }
-    };
+	let server = ServerBuilder::new(io)
+		.start(&conf.general.sockfile)?;
 
-    // accept connections and process them, spawning a new thread for each one
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                /* connection succeeded */
-                handle_client(stream);
-            }
-            Err(_) => {
-                /* connection failed */
-                break;
-            }
-        }
-    }
+	server.wait();
 
-    println!("server: died");
+    Ok(())
 }
