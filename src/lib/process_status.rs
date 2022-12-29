@@ -1,4 +1,5 @@
-enum ProcessState {
+#[derive(PartialEq)]
+pub enum ProcessState {
     Stopped,
     Starting,
     Running,
@@ -7,6 +8,21 @@ enum ProcessState {
     Exited,
     Fatal,
     Unknown,
+}
+
+impl ProcessState {
+    pub fn stopable(&self) -> bool {
+        *self != ProcessState::Stopped
+            && *self != ProcessState::Stopping
+            && *self != ProcessState::Fatal
+            && *self != ProcessState::Exited
+    }
+
+    pub fn startable(&self) -> bool {
+        *self != ProcessState::Starting
+        && *self != ProcessState::Backoff
+        && *self != ProcessState::Running
+    }
 }
 
 impl std::fmt::Display for ProcessState {
@@ -24,7 +40,7 @@ impl std::fmt::Display for ProcessState {
     }
 }
 
-struct ProcessStatus {
+pub struct ProcessStatus {
     name: String,
     state: ProcessState,
     description: String,
