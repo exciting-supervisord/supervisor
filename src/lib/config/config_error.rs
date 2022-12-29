@@ -1,11 +1,13 @@
 use std::error::Error;
 
+use super::parser_ini;
+
 #[derive(Debug)]
 pub struct ConfigCommandError;
 
 impl std::fmt::Display for ConfigCommandError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "configuration: there is program the command isn't exist")
+        write!(f, "configuration: there is no command in program")
     }
 }
 
@@ -28,7 +30,11 @@ impl ConfigValueError {
 
 impl std::fmt::Display for ConfigValueError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "configuration: {}: {}", self.key, self.value)
+        write!(
+            f,
+            "configuration: invalid value: {}: {}",
+            self.key, self.value
+        )
     }
 }
 
