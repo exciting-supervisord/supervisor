@@ -18,21 +18,21 @@ pub enum AutoRestart {
 
 #[derive(Debug, PartialEq)]
 pub struct ProgramConfig {
-    command: Vec<String>,
-    numprocs: u32,
-    autostart: bool,
-    autorestart: AutoRestart,
-    exitcodes: Vec<u8>,
-    startsecs: u32,
-    startretries: u32,
-    stopsignal: Signal,
-    stopwaitsecs: u32,
-    stdout_logfile: String,
-    stderr_logfile: String,
-    directory: String,
-    umask: Option<u8>,
-    user: Option<String>,
-    environment: HashMap<String, String>,
+    pub command: Vec<String>,
+    pub numprocs: u32,
+    pub autostart: bool,
+    pub autorestart: AutoRestart,
+    pub exitcodes: Vec<i32>,
+    pub startsecs: u64,
+    pub startretries: u32,
+    pub stopsignal: Signal,
+    pub stopwaitsecs: u32,
+    pub stdout_logfile: String,
+    pub stderr_logfile: String,
+    pub directory: String,
+    pub umask: Option<i32>,
+    pub user: Option<String>,
+    pub environment: HashMap<String, String>,
 }
 
 impl ProgramConfig {
@@ -57,7 +57,7 @@ impl ProgramConfig {
         }
     }
 
-    fn parse_exitcodes(k: &str, v: &str) -> Result<Vec<u8>, ConfigValueError> {
+    fn parse_exitcodes(k: &str, v: &str) -> Result<Vec<i32>, ConfigValueError> {
         let sp: Vec<String> = v.split(',').map(|x| x.to_owned()).collect();
         let mut vec = Vec::new();
 
@@ -96,9 +96,9 @@ impl ProgramConfig {
         }
     }
 
-    fn parse_umask(k: &str, v: &str) -> Result<u8, ConfigValueError> {
-        let valueError = ConfigValueError::new(k, v);
-        Ok(u8::from_str_radix(v, 8).map_err(|_| valueError)?)
+    fn parse_umask(k: &str, v: &str) -> Result<i32, ConfigValueError> {
+        let value_error = ConfigValueError::new(k, v);
+        Ok(i32::from_str_radix(v, 8).map_err(|_| value_error)?)
     }
 
     fn parse_autorestart(k: &str, v: &str) -> Result<AutoRestart, ConfigValueError> {
@@ -124,7 +124,7 @@ impl ProgramConfig {
                 "autostart" => config.autostart = ProgramConfig::parse::<bool>(k, v)?,
                 "autorestart" => config.autorestart = ProgramConfig::parse_autorestart(k, v)?,
                 "exitcodes" => config.exitcodes = ProgramConfig::parse_exitcodes(k, v)?,
-                "startsecs" => config.startsecs = ProgramConfig::parse::<u32>(k, v)?,
+                "startsecs" => config.startsecs = ProgramConfig::parse::<u64>(k, v)?,
                 "startretries" => config.startretries = ProgramConfig::parse::<u32>(k, v)?,
                 "stopsignal" => config.stopsignal = ProgramConfig::parse_signal(k, v)?,
                 "stopwaitsecs" => config.stopwaitsecs = ProgramConfig::parse::<u32>(k, v)?,
@@ -152,8 +152,8 @@ impl std::fmt::Display for ProgramConfig {
 
 #[derive(Debug, PartialEq)]
 pub struct GeneralConfig {
-    sockfile: String,
-    pidfile: String,
+    pub sockfile: String,
+    pub pidfile: String,
 }
 
 impl GeneralConfig {
@@ -179,8 +179,8 @@ impl GeneralConfig {
 
 #[derive(Debug, PartialEq)]
 pub struct Config {
-    general: GeneralConfig,
-    programs: HashMap<String, ProgramConfig>,
+    pub general: GeneralConfig,
+    pub programs: HashMap<String, ProgramConfig>,
 }
 
 impl Config {
