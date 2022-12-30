@@ -621,6 +621,7 @@ dependencies = [
  "libc",
  "nix",
  "rust-ini",
+ "serde",
  "serde_json",
 ]
 

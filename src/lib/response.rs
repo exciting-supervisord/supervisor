@@ -1,3 +1,7 @@
+use serde::{Deserialize, Serialize};
+
+pub type Response = Result<OutputMessage, Error>;
+
 #[derive(Debug)]
 pub enum Error {
     FileFormat,
@@ -20,3 +24,15 @@ impl std::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OutputMessage {
+    name: String,
+    message: String,
+}
+
+impl std::fmt::Display for OutputMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.name, self.message)
+    }
+}

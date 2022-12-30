@@ -7,9 +7,7 @@ use std::time::{Duration, Instant, SystemTime};
 use std::vec::Vec;
 
 use lib::config::{AutoRestart, Config, ProgramConfig};
-use lib::output_message::OutputMessage;
 use lib::process_status::{ProcessState, ProcessStatus};
-use lib::rpc_error;
 
 use nix::unistd::Pid;
 

@@ -4,7 +4,7 @@ use std::time::{Instant, SystemTime};
 
 use lib::config::{AutoRestart, ProcessConfig, ProgramConfig};
 use lib::process_status::{ProcessState, ProcessStatus};
-use lib::rpc_error;
+use lib::response;
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
@@ -12,7 +12,7 @@ use nix::unistd::Pid;
 pub trait IProcess {
     fn new(config: &ProgramConfig) -> Result<Process, Box<dyn std::error::Error>>;
     fn start(&mut self) -> Result<(), Box<dyn std::error::Error>>;
-    fn stop(&mut self) -> Result<(), rpc_error::Error>;
+    fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>>;
     fn is_stopped(&self) -> bool;
     fn get_status(&self) -> ProcessStatus;
     fn run(&mut self) -> Result<(), Box<dyn std::error::Error>>;
@@ -48,7 +48,7 @@ impl IProcess for Process {
     }
     fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if !self.state.startable() {
-            return Err(Box::new(rpc_error::Error::ProcessAlreadyStarted(
+            return Err(Box::new(response::Error::ProcessAlreadyStarted(
                 self.conf.name.to_owned(),
             )));
         }
@@ -57,11 +57,11 @@ impl IProcess for Process {
         self.spawn_process()
     }
 
-    fn stop(&mut self) -> Result<(), rpc_error::Error> {
+    fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if !self.state.stopable() {
-            return Err(rpc_error::Error::ProcessNotRunning(
+            return Err(Box::new(response::Error::ProcessNotRunning(
                 self.conf.name.to_owned(),
-            ));
+            )));
         }
         self.state = ProcessState::Stopping;
         self.stop_at = Some(Instant::now());
@@ -115,12 +115,16 @@ impl Process {
         Ok(())
     }
 
-    fn send_signal(&mut self, signal: Signal) -> Result<(), rpc_error::Error> {
-        signal::kill(
+    fn send_signal(&mut self, signal: Signal) -> Result<(), Box<dyn std::error::Error>> {
+        match signal::kill(
             Pid::from_raw(self.exec.as_ref().unwrap().id() as i32),
             signal,
-        )
-        .map_err(|_| rpc_error::Error::ProcessNotFound(self.conf.name.to_owned()))
+        ) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(Box::new(response::Error::ProcessNotFound(
+                self.conf.name.to_owned(),
+            ))),
+        }
     }
 
     fn autorestart(&mut self) -> Result<(), Box<dyn std::error::Error>> {
