@@ -4,6 +4,7 @@ use lib::config::Config;
 use lib::request::Request;
 use lib::response::{Error as RpcError, OutputMessage, Response};
 
+use serde::Deserialize;
 use server::supervisor::Supervisor;
 
 use std::collections::HashMap;
@@ -31,7 +32,7 @@ impl UdsRpcServer {
             listener: UnixListener::bind(path)?,
             methods: HashMap::new(),
         };
-        server.listener.set_nonblocking(true)?;
+        // server.listener.set_nonblocking(true)?;
 
         Ok(server)
     }
@@ -48,10 +49,14 @@ impl UdsRpcServer {
     }
 
     fn exec_method(&self, socket: &UnixStream) -> Result<OutputMessage, RpcError> {
-        let req: Request = serde_json::from_reader(socket).map_err(|_| RpcError::Service)?;
-        let method = self.get_method(&req.method)?;
+        // let req: Request = serde_json::from_reader(socket).map_err(|_| RpcError::Service)?;
+        
+        let mut de = serde_json::Deserializer::from_reader(socket);
 
-        Ok(method(&req.args)?)
+        let req = Request::deserialize(&mut de).map_err(|_| RpcError::Service)?;
+        
+        let method = self.get_method(&req.method)?;
+        method(&req.args)
     }
 
     pub fn try_handle_client(&self) -> Result<bool, RpcError> {
@@ -59,7 +64,8 @@ impl UdsRpcServer {
             Ok((ref socket, ..)) => {
                 match self.exec_method(socket) {
                     Ok(msg) => {
-                        serde_json::to_writer(socket, &msg).map_err(|_| RpcError::Service)?;
+                        let to_send: Response = Ok(msg);
+                        serde_json::to_writer(socket, &to_send).map_err(|_| RpcError::Service)?;
                         Ok(true)
                     }
                     Err(e) => Err(e),
@@ -100,7 +106,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let conf = Config::from(CONF_FILE)?;
     let mut server = UdsRpcServer::new(&conf.general.sockfile)?;
 
-    server.add_method("test", |v| {
+    server.add_method("start", |v| {
         println!("vec = {:?}", v);
         Ok(OutputMessage::new("test", "good"))
     });
