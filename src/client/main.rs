@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "version" => command::print_version(),
                 "open" => net.open(words[1]),
                 "exit" | "quit" => process::exit(0),
-                _ => net.communicate_with_server(words)?,
+                _ => net.communicate_with_server(words),
             },
         }
     }
