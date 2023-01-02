@@ -116,6 +116,10 @@ impl IProcess for Process {
 
 impl Process {
     fn new_command(conf: &ProgramConfig) -> Result<Command, Box<dyn std::error::Error>> {
+        println!("cmd = {}", conf.command[0]);
+        println!("cmd = {}", &conf.stdout_logfile);
+        println!("cmd = {}", &conf.stderr_logfile);
+        
         let stdout = File::create(&conf.stdout_logfile)?;
         let stderr = File::create(&conf.stderr_logfile)?;
 

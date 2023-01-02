@@ -13,7 +13,7 @@ use nix::unistd::Pid;
 
 use super::process::*;
 
-struct Supervisor {
+pub struct Supervisor {
     config: Config,
     processes: HashMap<String, Process>,
     trashes: Vec<Process>,
@@ -52,13 +52,11 @@ impl Supervisor {
     }
 
     pub fn supervise(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        loop {
-            for (_, process) in self.processes.iter_mut() {
-                process.run()?;
-            }
-            self.garbage_collect();
-            sleep(Duration::from_millis(500));
+        for (_, process) in self.processes.iter_mut() {
+            process.run()?;
         }
+        self.garbage_collect();
+        Ok(())
     }
 
     fn remove_process(&mut self, process_name: &str) -> Result<(), Box<dyn std::error::Error>> {

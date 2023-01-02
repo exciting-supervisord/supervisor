@@ -31,6 +31,15 @@ pub struct OutputMessage {
     message: String,
 }
 
+impl OutputMessage {
+    pub fn new(name: &str, message: &str) -> Self {
+        OutputMessage {
+            name: name.to_string(),
+            message: message.to_string(),
+        }
+    }
+}
+
 impl std::fmt::Display for OutputMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.name, self.message)
