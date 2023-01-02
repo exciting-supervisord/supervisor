@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub type Response = Result<OutputMessage, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum Error {
     FileFormat,
     Service,
