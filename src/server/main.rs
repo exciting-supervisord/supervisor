@@ -1,4 +1,4 @@
-mod core;
+pub mod core;
 
 use jsonrpc_ipc_server::jsonrpc_core::{IoHandler, Params, Value};
 use jsonrpc_ipc_server::ServerBuilder;
