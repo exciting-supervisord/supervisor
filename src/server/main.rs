@@ -8,6 +8,7 @@ use server::supervisor::Supervisor;
 
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs::remove_file;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -58,7 +59,8 @@ impl UdsRpcServer {
             Ok((ref socket, ..)) => {
                 match self.exec_method(socket) {
                     Ok(msg) => {
-                        Ok(serde_json::to_writer(socket, &msg).map_err(|_| RpcError::Service)?)
+                        serde_json::to_writer(socket, &msg).map_err(|_| RpcError::Service)?;
+                        Ok(true)
                     }
                     Err(e) => Err(e),
                 }?;
@@ -67,9 +69,11 @@ impl UdsRpcServer {
             Err(_) => Ok(false),
         }
     }
+}
 
-    pub fn stop(&mut self) {
-        self.listener.
+impl Drop for UdsRpcServer {
+    fn drop(&mut self) {
+        remove_file(self.listener.local_addr().unwrap().as_pathname().unwrap()).unwrap();
     }
 }
 
