@@ -3,6 +3,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Instant, SystemTime};
 
 use lib::config::{AutoRestart, ProcessConfig, ProgramConfig};
+use lib::process_id::ProcessId;
 use lib::process_status::{ProcessState, ProcessStatus};
 use lib::response;
 
@@ -10,13 +11,15 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 
 pub trait IProcess {
-    fn new(config: &ProgramConfig) -> Result<Process, Box<dyn std::error::Error>>;
+    fn new(config: &ProgramConfig, index: u32) -> Result<Process, Box<dyn std::error::Error>>;
     fn start(&mut self) -> Result<(), Box<dyn std::error::Error>>;
     fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    fn run(&mut self) -> Result<(), Box<dyn std::error::Error>>;
     fn is_stopped(&self) -> bool;
     fn get_status(&self) -> ProcessStatus;
-    fn run(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    fn get_name(&self) -> String;
 }
+
 pub struct Process {
     pub exec: Option<Child>,
     pub command: Command,
@@ -24,6 +27,7 @@ pub struct Process {
     pub stop_at: Option<Instant>,
     pub exited_at: Option<SystemTime>, //?
     pub description: String,
+    id: ProcessId,
     current_try: u32,
     state: ProcessState,
     exit_status: Option<i32>,
@@ -31,9 +35,18 @@ pub struct Process {
 }
 
 impl IProcess for Process {
-    fn new(config: &ProgramConfig) -> Result<Process, Box<dyn std::error::Error>> {
+    fn get_name(&self) -> String {
+        self.id.name.to_owned()
+    }
+
+    fn new(config: &ProgramConfig, index: u32) -> Result<Process, Box<dyn std::error::Error>> {
         let command = Process::new_command(config)?;
-        Ok(Process {
+        let id = ProcessId {
+            index,
+            name: config.name.to_owned(),
+        };
+        let mut process = Process {
+            id,
             command,
             exec: None,
             state: ProcessState::Stopped,
@@ -44,12 +57,18 @@ impl IProcess for Process {
             exit_status: None,
             description: String::from("Not started"),
             conf: ProcessConfig::from(config),
-        })
+        };
+
+        if config.autostart {
+            process.start()?;
+        }
+        Ok(process)
     }
+
     fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if !self.state.startable() {
             return Err(Box::new(response::Error::ProcessAlreadyStarted(
-                self.conf.name.to_owned(),
+                self.id.name.to_owned(),
             )));
         }
         self.started_at = Some(Instant::now());
@@ -60,7 +79,7 @@ impl IProcess for Process {
     fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if !self.state.stopable() {
             return Err(Box::new(response::Error::ProcessNotRunning(
-                self.conf.name.to_owned(),
+                self.id.name.to_owned(),
             )));
         }
         self.state = ProcessState::Stopping;
@@ -74,7 +93,7 @@ impl IProcess for Process {
 
     fn get_status(&self) -> ProcessStatus {
         ProcessStatus::new(
-            self.conf.name.to_owned(),
+            self.id.name.to_owned(),
             self.state.clone(),
             self.description.to_string(),
         )
@@ -122,7 +141,7 @@ impl Process {
         ) {
             Ok(_) => Ok(()),
             Err(_) => Err(Box::new(response::Error::ProcessNotFound(
-                self.conf.name.to_owned(),
+                self.id.name.to_owned(),
             ))),
         }
     }

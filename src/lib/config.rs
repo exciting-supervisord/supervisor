@@ -3,6 +3,7 @@ extern crate nix;
 mod config_error;
 mod parser_ini;
 
+use super::process_id::ProcessId;
 use config_error::*;
 use nix::sys::signal::Signal;
 use std::collections::{HashMap, HashSet};
@@ -17,7 +18,6 @@ pub enum AutoRestart {
 }
 
 pub struct ProcessConfig {
-    pub name: String,
     pub autostart: bool,
     pub autorestart: AutoRestart,
     pub exitcodes: Vec<i32>,
@@ -30,7 +30,6 @@ pub struct ProcessConfig {
 impl ProcessConfig {
     pub fn from(conf: &ProgramConfig) -> Self {
         ProcessConfig {
-            name: conf.name.to_owned(),
             autostart: conf.autostart,
             autorestart: conf.autorestart,
             exitcodes: conf.exitcodes.clone(),
@@ -46,7 +45,14 @@ impl ProcessConfig {
 pub struct ProgramConfig {
     pub name: String,
     pub command: Vec<String>,
-    pub numprocs: u32,
+    pub numprocs: u32, // ?
+    pub stdout_logfile: String,
+    pub stderr_logfile: String,
+    pub directory: String,
+    pub umask: Option<i32>,
+    pub user: Option<String>,
+    pub environment: HashMap<String, String>,
+
     pub autostart: bool,
     pub autorestart: AutoRestart,
     pub exitcodes: Vec<i32>,
@@ -54,12 +60,6 @@ pub struct ProgramConfig {
     pub startretries: u32,
     pub stopsignal: Signal,
     pub stopwaitsecs: u64,
-    pub stdout_logfile: String,
-    pub stderr_logfile: String,
-    pub directory: String,
-    pub umask: Option<i32>,
-    pub user: Option<String>,
-    pub environment: HashMap<String, String>,
 }
 
 impl ProgramConfig {
@@ -170,6 +170,23 @@ impl ProgramConfig {
         }
         Ok(config)
     }
+
+    pub fn diff(&self, other: &ProgramConfig) -> bool {
+        self.stdout_logfile != other.stdout_logfile
+            || self.stderr_logfile != other.stderr_logfile
+            || self.directory != other.directory
+            || self.umask != other.umask
+            || self.user != other.user
+            || self.environment != other.environment
+            || self.autostart != other.autostart
+            || self.autorestart != other.autorestart
+            || self.exitcodes != other.exitcodes
+            || self.startsecs != other.startsecs
+            || self.startretries != other.startretries
+            || self.stopsignal != other.stopsignal
+            || self.stopwaitsecs != other.stopwaitsecs
+            || self.command != self.command
+    }
 }
 
 impl std::fmt::Display for ProgramConfig {
@@ -232,14 +249,16 @@ impl Config {
         Ok(Config { general, programs })
     }
 
-    pub fn program_list(&self) -> HashSet<String> {
-        let mut v = HashSet::new();
-        self.programs
-            .iter()
-            .for_each(|(k, _)| match v.insert(k.to_owned()) {
-                _ => {}
-            });
-        v
+    pub fn process_list(&self) -> HashSet<ProcessId> {
+        let mut set = HashSet::new();
+        self.programs.iter().for_each(|(k, v)| {
+            for process_num in 0..v.numprocs {
+                match set.insert(ProcessId::new(k.to_owned(), process_num)) {
+                    _ => {}
+                }
+            }
+        });
+        set
     }
 }
 
