@@ -69,7 +69,7 @@ impl UdsRpcServer {
     }
 
     pub fn stop(&mut self) {
-        
+        self.listener.
     }
 }
 
