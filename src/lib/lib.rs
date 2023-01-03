@@ -1,4 +1,5 @@
 pub mod config;
+pub mod logger;
 pub mod process_id;
 pub mod process_status;
 pub mod request;
