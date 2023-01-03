@@ -5,19 +5,20 @@ use std::time::{Instant, SystemTime};
 use lib::config::{AutoRestart, ProcessConfig, ProgramConfig};
 use lib::process_id::ProcessId;
 use lib::process_status::{ProcessState, ProcessStatus};
-use lib::response;
+use lib::response::Error as RpcError;
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 
 pub trait IProcess {
-    fn new(config: &ProgramConfig, index: u32) -> Result<Process, Box<dyn std::error::Error>>;
-    fn start(&mut self) -> Result<(), Box<dyn std::error::Error>>;
-    fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>>;
-    fn run(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError>;
+    fn start(&mut self) -> Result<(), RpcError>;
+    fn stop(&mut self) -> Result<(), RpcError>;
+    fn run(&mut self) -> Result<(), RpcError>;
     fn is_stopped(&self) -> bool;
     fn get_status(&self) -> ProcessStatus;
     fn get_name(&self) -> String;
+    fn get_id(&self) -> ProcessId;
 }
 
 pub struct Process {
@@ -35,16 +36,17 @@ pub struct Process {
 }
 
 impl IProcess for Process {
+    fn get_id(&self) -> ProcessId {
+        ProcessId::new(self.id.name.to_owned(), self.id.index)
+    }
+
     fn get_name(&self) -> String {
         self.id.name.to_owned()
     }
 
-    fn new(config: &ProgramConfig, index: u32) -> Result<Process, Box<dyn std::error::Error>> {
+    fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError> {
         let command = Process::new_command(config)?;
-        let id = ProcessId {
-            index,
-            name: config.name.to_owned(),
-        };
+        let id = ProcessId::new(config.name.to_owned(), index);
         let mut process = Process {
             id,
             command,
@@ -65,22 +67,18 @@ impl IProcess for Process {
         Ok(process)
     }
 
-    fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn start(&mut self) -> Result<(), RpcError> {
         if !self.state.startable() {
-            return Err(Box::new(response::Error::ProcessAlreadyStarted(
-                self.id.name.to_owned(),
-            )));
+            return Err(RpcError::ProcessAlreadyStarted(self.id.name.to_owned()));
         }
         self.started_at = Some(Instant::now());
         self.state = ProcessState::Starting;
         self.spawn_process()
     }
 
-    fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn stop(&mut self) -> Result<(), RpcError> {
         if !self.state.stopable() {
-            return Err(Box::new(response::Error::ProcessNotRunning(
-                self.id.name.to_owned(),
-            )));
+            return Err(RpcError::ProcessNotRunning(self.id.name.to_owned()));
         }
         self.state = ProcessState::Stopping;
         self.stop_at = Some(Instant::now());
@@ -99,7 +97,7 @@ impl IProcess for Process {
         )
     }
 
-    fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn run(&mut self) -> Result<(), RpcError> {
         match self.state {
             ProcessState::Starting => self.starting(),
             ProcessState::Running => self.running(),
@@ -115,13 +113,15 @@ impl IProcess for Process {
 }
 
 impl Process {
-    fn new_command(conf: &ProgramConfig) -> Result<Command, Box<dyn std::error::Error>> {
+    fn new_command(conf: &ProgramConfig) -> Result<Command, RpcError> {
         println!("cmd = {}", conf.command[0]);
         println!("cmd = {}", &conf.stdout_logfile);
         println!("cmd = {}", &conf.stderr_logfile);
-        
-        let stdout = File::create(&conf.stdout_logfile)?;
-        let stderr = File::create(&conf.stderr_logfile)?;
+
+        let stdout = File::create(&conf.stdout_logfile)
+            .map_err(|e| RpcError::file_open(e.to_string().as_str()))?;
+        let stderr = File::create(&conf.stderr_logfile)
+            .map_err(|e| RpcError::file_open(e.to_string().as_str()))?;
 
         let mut exec = Command::new(&conf.command[0]);
 
@@ -133,24 +133,26 @@ impl Process {
         Ok(exec)
     }
 
-    fn spawn_process(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.exec = Some(self.command.spawn()?);
+    fn spawn_process(&mut self) -> Result<(), RpcError> {
+        self.exec = Some(
+            self.command
+                .spawn()
+                .map_err(|e| RpcError::spawn(e.to_string().as_str()))?,
+        );
         Ok(())
     }
 
-    fn send_signal(&mut self, signal: Signal) -> Result<(), Box<dyn std::error::Error>> {
+    fn send_signal(&mut self, signal: Signal) -> Result<(), RpcError> {
         match signal::kill(
             Pid::from_raw(self.exec.as_ref().unwrap().id() as i32),
             signal,
         ) {
             Ok(_) => Ok(()),
-            Err(_) => Err(Box::new(response::Error::ProcessNotFound(
-                self.id.name.to_owned(),
-            ))),
+            Err(_) => Err(RpcError::ProcessNotFound(self.id.name.to_owned())),
         }
     }
 
-    fn autorestart(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn autorestart(&mut self) -> Result<(), RpcError> {
         self.spawn_process()?;
         self.state = ProcessState::Starting;
         self.current_try = 0;
@@ -191,7 +193,7 @@ impl Process {
         self.state = ProcessState::Exited;
     }
 
-    fn backoff(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn backoff(&mut self) -> Result<(), RpcError> {
         if self.conf.startretries < self.current_try {
             self.state = ProcessState::Fatal;
         } else {
@@ -201,7 +203,7 @@ impl Process {
         Ok(())
     }
 
-    fn stopping(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn stopping(&mut self) -> Result<(), RpcError> {
         if self.is_process_alive() {
             let interval = self.stop_at.unwrap().elapsed().as_secs();
             if interval > self.conf.stopwaitsecs {
@@ -218,7 +220,7 @@ impl Process {
         // ?
     }
 
-    fn exited(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn exited(&mut self) -> Result<(), RpcError> {
         let exitcodes = &self.conf.exitcodes;
         let autorestart = self.conf.autorestart;
         self.state = ProcessState::Exited;

@@ -5,8 +5,9 @@ use lib::request::Request;
 use lib::response::{Error as RpcError, OutputMessage, Response};
 
 use serde::Deserialize;
-use server::supervisor::Supervisor;
+use server::supervisor::{self, Supervisor};
 
+use core::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::remove_file;
@@ -21,63 +22,69 @@ use nix::sys::signal::{self, SigHandler, Signal};
 
 const CONF_FILE: &'static str = "./general.ini";
 
-struct UdsRpcServer {
+struct UdsRpcServer<'a> {
     listener: UnixListener,
-    methods: HashMap<String, fn(&Vec<String>) -> Response>,
+    methods: HashMap<String, Box<dyn FnMut(Vec<String>) -> Response + 'a>>,
 }
 
-impl UdsRpcServer {
+impl<'a> UdsRpcServer<'a> {
     pub fn new(path: &str) -> Result<Self, Box<dyn Error>> {
         let server = UdsRpcServer {
             listener: UnixListener::bind(path)?,
             methods: HashMap::new(),
         };
-        // server.listener.set_nonblocking(true)?;
-
+        server.listener.set_nonblocking(true)?;
         Ok(server)
     }
 
-    pub fn add_method(&mut self, key: &str, method: fn(&Vec<String>) -> Response) {
-        self.methods.insert(key.to_string(), method);
+    pub fn add_method<F>(&mut self, key: &str, method: F)
+    where
+        F: FnMut(Vec<String>) -> Response + 'a,
+    {
+        self.methods.insert(key.to_string(), Box::new(method));
     }
 
-    fn get_method(&self, key: &str) -> Result<&fn(&Vec<String>) -> Response, RpcError> {
-        match self.methods.get(key) {
-            Some(method) => Ok(method),
-            None => Err(RpcError::Service),
-        }
+    fn get_method(&mut self, key: &str) -> &mut Box<dyn FnMut(Vec<String>) -> Response + 'a> {
+        self.methods.get_mut(key).unwrap()
     }
 
-    fn exec_method(&self, socket: &UnixStream) -> Result<OutputMessage, RpcError> {
-        // let req: Request = serde_json::from_reader(socket).map_err(|_| RpcError::Service)?;
-        
-        let mut de = serde_json::Deserializer::from_reader(socket);
-
-        let req = Request::deserialize(&mut de).map_err(|_| RpcError::Service)?;
-        
-        let method = self.get_method(&req.method)?;
-        method(&req.args)
+    fn exec_method(&mut self, req: Request) -> Response {
+        let method = self.get_method(&req.method);
+        method(req.args)
     }
 
-    pub fn try_handle_client(&self) -> Result<bool, RpcError> {
-        match self.listener.accept() {
-            Ok((ref socket, ..)) => {
-                match self.exec_method(socket) {
-                    Ok(msg) => {
-                        let to_send: Response = Ok(msg);
-                        serde_json::to_writer(socket, &to_send).map_err(|_| RpcError::Service)?;
-                        Ok(true)
-                    }
-                    Err(e) => Err(e),
-                }?;
-                Ok(true)
+    fn get_request(&self, socket: &UnixStream) -> Result<Request, RpcError> {
+        let mut deserializer = serde_json::Deserializer::from_reader(socket);
+        let req = Request::deserialize(&mut deserializer)
+            .map_err(|_| RpcError::service("request not received"))?;
+        Ok(req)
+    }
+
+    fn handle_client(&mut self, socket: &UnixStream) {
+        let req = match self.get_request(socket) {
+            Ok(o) => o,
+            Err(e) => {
+                serde_json::to_writer(socket, &e);
+                socket.shutdown(std::net::Shutdown::Both);
+                return;
             }
-            Err(_) => Ok(false),
+        };
+
+        let res = self.exec_method(req);
+        serde_json::to_writer(socket, &res).or_else(|_| socket.shutdown(std::net::Shutdown::Both));
+    }
+
+    pub fn try_handle_client(&mut self) -> bool {
+        if let Ok((ref socket, ..)) = self.listener.accept() {
+            self.handle_client(socket);
+            true
+        } else {
+            false
         }
     }
 }
 
-impl Drop for UdsRpcServer {
+impl Drop for UdsRpcServer<'_> {
     fn drop(&mut self) {
         remove_file(self.listener.local_addr().unwrap().as_pathname().unwrap()).unwrap();
     }
@@ -101,20 +108,39 @@ fn set_signal_handlers() {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn set_command_handlers<'a, 'b>(
+    server: &'a mut UdsRpcServer<'b>,
+    supervisor: &'b RefCell<Supervisor>,
+) {
+    let start = |args| supervisor.borrow_mut().start(args);
+    let stop = |args| supervisor.borrow_mut().stop(args);
+    // let update = |args| supervisor.update(args);
+
+    server.add_method("start", start);
+    server.add_method("stop", stop);
+    // server.add_method("update", update);
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     set_signal_handlers();
-    let conf = Config::from(CONF_FILE)?;
-    let mut server = UdsRpcServer::new(&conf.general.sockfile)?;
 
-    server.add_method("start", |v| {
-        println!("vec = {:?}", v);
-        Ok(OutputMessage::new("test", "good"))
-    });
+    let conf = match Config::from(CONF_FILE) {
+        Ok(o) => o,
+        Err(e) => lib::exit_with_error(e),
+    };
 
-    let mut supervisor = Supervisor::new(conf)?;
+    let supervisor = Supervisor::new(conf)?;
+    let supervisor = RefCell::new(supervisor);
+    let mut server = match UdsRpcServer::new(supervisor.borrow().sockfile()) {
+        Ok(o) => o,
+        Err(e) => lib::exit_with_error(e),
+    };
+
+    set_command_handlers(&mut server, &supervisor); // 'a 'b
+
     loop {
-        server.try_handle_client()?;
-        supervisor.supervise()?;
+        server.try_handle_client();
+        supervisor.borrow_mut().supervise()?;
 
         thread::sleep(Duration::from_millis(100));
         println!("loop");

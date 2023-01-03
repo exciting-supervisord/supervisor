@@ -63,12 +63,12 @@ impl Net {
 
         let mut line = String::new();
         stream.read_to_string(&mut line)?;
-        let response = serde_json::from_str::<Response>(&line)?;
+        let responses = serde_json::from_str::<Response>(&line)?;
 
-        match response {
+        responses.list.iter().for_each(|res| match res {
             Ok(o) => println!("{o}"),
             Err(e) => eprintln!("{e}"),
-        }
+        });
         Ok(())
     }
 
