@@ -7,14 +7,14 @@ use lib::request::Request;
 use lib::response::Response;
 
 pub struct Net {
-    sock_path: &'static str,
+    sock_path: String,
     stream: Option<UnixStream>,
 }
 
 impl Net {
-    pub fn new(sock_path: &'static str) -> Self {
+    pub fn new(sock_path: &str) -> Self {
         Net {
-            sock_path,
+            sock_path: sock_path.to_owned(),
             stream: Net::connect(sock_path),
         }
     }
@@ -28,6 +28,7 @@ impl Net {
     }
 
     pub fn open(&mut self, sock_path: &str) {
+        self.sock_path = sock_path.to_owned();
         self.stream = Net::connect(sock_path); // 이전 소켓 있을 때?
     }
 
@@ -73,6 +74,7 @@ impl Net {
     }
 
     pub fn communicate_with_server(&mut self, words: Vec<&str>) {
+        self.stream = Net::connect(self.sock_path.as_str());
         if let Err(e) = self.send_command(words) {
             eprintln!("Service Temporary Unavailable: {e:?}");
             self.disconnect();
@@ -81,6 +83,5 @@ impl Net {
             eprintln!("Service Temporary Unavailable: {e:?}");
             self.disconnect();
         }
-        self.stream = Net::connect(self.sock_path); // FIXME keep-alive or closed ?
     }
 }

@@ -1,24 +1,17 @@
-use std::alloc::System;
-use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
-use std::mem::take;
-use std::rc::Rc;
-use std::thread::sleep;
-use std::time::{Duration, Instant, SystemTime};
+mod process;
+
+use std::collections::HashMap;
 use std::vec::Vec;
 
-use lib::config::{AutoRestart, Config, ProgramConfig};
+use lib::config::{Config, ProgramConfig};
 use lib::process_id::ProcessId;
 use lib::process_status::{ProcessState, ProcessStatus};
 use lib::response::{Error as RpcError, OutputMessage as RpcOutput, Response as RpcResponse};
 
-use nix::unistd::Pid;
-
-use crate::CONF_FILE;
-
-use super::process::*;
+use process::*;
 
 pub struct Supervisor {
+    file_path: String,
     config: Config,
     processes: HashMap<ProcessId, Process>,
     trashes: Vec<Process>,
@@ -29,7 +22,8 @@ impl Supervisor {
         &self.config.general.sockfile
     }
 
-    pub fn new(config: Config) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(file_path: &str, config: Config) -> Result<Self, Box<dyn std::error::Error>> {
+        let file_path = file_path.to_owned();
         let mut processes = HashMap::new();
         let trashes = Vec::new();
 
@@ -41,6 +35,7 @@ impl Supervisor {
         }
 
         Ok(Supervisor {
+            file_path,
             config,
             processes,
             trashes,
@@ -87,8 +82,6 @@ impl Supervisor {
 
     // pub fn status(&self, names: Vec<String>) -> Result<Vec<ProcessStatus>, rpc_error::Error> {}
 
-    const CONF_FILE: &'static str = "./general.ini";
-
     fn affect(&mut self, next_conf: &Config) {
         let next_list = next_conf.process_list();
         let prev_list = self.config.process_list();
@@ -117,9 +110,7 @@ impl Supervisor {
     }
 
     pub fn update(&mut self, _: &Vec<String>) -> RpcResponse {
-        let file_path = CONF_FILE; // FIXME
-
-        let next_conf = match Config::from(file_path) {
+        let next_conf = match Config::from(&self.file_path) {
             Ok(o) => o,
             Err(e) => return RpcResponse::from_err(RpcError::file_format(e.to_string().as_str())),
         };
@@ -150,7 +141,7 @@ impl Supervisor {
         } else {
             match order {
                 "start" => match self.processes.get_mut(id).unwrap().start() {
-                    Err(e) => Err(RpcError::Service(e.to_string())), // FIXME ?
+                    Err(e) => Err(RpcError::Service(e.to_string())), // FIXME 추상화....!
                     Ok(_) => Ok(RpcOutput::new(id.name.as_str(), "started")),
                 },
                 "stop" => match self.processes.get_mut(id).unwrap().stop() {
@@ -166,7 +157,6 @@ impl Supervisor {
     // where Error: ProcessNotFoundError + ProcessAlreadyStartedError
     pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
         let inputs = self.convert_to_process_ids(&names);
-        let runnings = self.config.process_list();
 
         inputs
             .iter()
@@ -178,7 +168,6 @@ impl Supervisor {
     // where Error: ProcessNotFoundError + ProcessNotRunningError
     pub fn stop(&mut self, names: Vec<String>) -> RpcResponse {
         let inputs = self.convert_to_process_ids(&names);
-        let runnings = self.config.process_list();
 
         inputs
             .iter()
@@ -187,12 +176,12 @@ impl Supervisor {
     }
 
     // Reload() -> ()
-    pub fn reload() {}
+    // pub fn reload() {}
 
     //     Shutdown() -> ()
-    pub fn shutdown() {}
+    // pub fn shutdown() {}
 
     // Status(Vec<name>) -> Result( Vec<ProcessStatus>, Error)
     // where Error: ServiceError + ProcessNotFoundError
-    pub fn status() {}
+    // pub fn status() {}
 }
