@@ -107,4 +107,32 @@ impl Supervisor {
         self.config = next_conf;
         Ok(())
     }
+    
+    // Start(name) -> Result( OutputMessage, Error)
+    // where Error: ProcessNotFoundError + ProcessAlreadyStartedError
+    pub fn start(&mut self, names: &Vec<String>) {
+
+    }
+
+    // Stop(name) -> Result( OutputMessage, Error)
+    // where Error: ProcessNotFoundError + ProcessNotRunningError
+    pub fn stop() {
+
+    }
+
+    // Reload() -> ()
+    pub fn reload() {
+
+    }
+
+    //     Shutdown() -> ()
+    pub fn shutdown() {
+
+    }
+
+    // Status(Vec<name>) -> Result( Vec<ProcessStatus>, Error)
+    // where Error: ServiceError + ProcessNotFoundError
+    pub fn status() {
+
+    }
 }
