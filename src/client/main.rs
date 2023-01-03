@@ -10,7 +10,7 @@ use std::process;
 use terminal::Terminal;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let sockfile = "/tmp/json-ipc-test.ipc";
+    let sockfile = "/tmp/supervisor.sock";
     let mut t = Terminal::new("supervisor>");
     let mut net = Net::new(sockfile);
 

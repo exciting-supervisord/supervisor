@@ -50,6 +50,7 @@ impl Net {
         ))?;
 
         let line: String = serde_json::to_string::<Request>(&req)?;
+        println!("{line}");
         stream.write_all(line.as_bytes())?;
         Ok(())
     }

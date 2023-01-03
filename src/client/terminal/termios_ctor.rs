@@ -15,6 +15,7 @@ impl Constructor for termios {
             c_ospeed: 0,
             c_cflag: 0,
             c_lflag: 0,
+            c_line: 0,
             c_cc: Default::default(),
         }
     }
