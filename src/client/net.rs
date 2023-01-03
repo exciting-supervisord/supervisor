@@ -7,14 +7,14 @@ use lib::request::Request;
 use lib::response::Response;
 
 pub struct Net {
-    sock_path: &'static str,
+    sock_path: String,
     stream: Option<UnixStream>,
 }
 
 impl Net {
-    pub fn new(sock_path: &'static str) -> Self {
+    pub fn new(sock_path: &str) -> Self {
         Net {
-            sock_path,
+            sock_path: sock_path.to_owned(),
             stream: Net::connect(sock_path),
         }
     }
@@ -28,6 +28,7 @@ impl Net {
     }
 
     pub fn open(&mut self, sock_path: &str) {
+        self.sock_path = sock_path.to_owned();
         self.stream = Net::connect(sock_path); // 이전 소켓 있을 때?
     }
 
@@ -63,16 +64,17 @@ impl Net {
 
         let mut line = String::new();
         stream.read_to_string(&mut line)?;
-        let response = serde_json::from_str::<Response>(&line)?;
+        let responses = serde_json::from_str::<Response>(&line)?;
 
-        match response {
+        responses.list.iter().for_each(|res| match res {
             Ok(o) => println!("{o}"),
             Err(e) => eprintln!("{e}"),
-        }
+        });
         Ok(())
     }
 
     pub fn communicate_with_server(&mut self, words: Vec<&str>) {
+        self.stream = Net::connect(self.sock_path.as_str());
         if let Err(e) = self.send_command(words) {
             eprintln!("Service Temporary Unavailable: {e:?}");
             self.disconnect();
@@ -81,6 +83,5 @@ impl Net {
             eprintln!("Service Temporary Unavailable: {e:?}");
             self.disconnect();
         }
-        self.stream = Net::connect(self.sock_path); // FIXME keep-alive or closed ?
     }
 }

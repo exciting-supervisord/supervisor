@@ -56,18 +56,12 @@ impl std::fmt::Display for ConfigKeyError {
 impl Error for ConfigKeyError {}
 
 #[derive(Debug)]
-pub struct ConfigSectionError(String);
+pub struct ConfigFileError;
 
-impl ConfigSectionError {
-    pub fn new(section: &str) -> Self {
-        ConfigSectionError(section.to_owned())
-    }
-}
-
-impl std::fmt::Display for ConfigSectionError {
+impl std::fmt::Display for ConfigFileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "configuration: invalid section: {}", self.0)
+        write!(f, "configuration: invalid file format")
     }
 }
 
-impl Error for ConfigSectionError {}
+impl Error for ConfigFileError {}
