@@ -37,7 +37,7 @@ pub struct Process {
 
 impl IProcess for Process {
     fn get_id(&self) -> ProcessId {
-        ProcessId::new(self.id.name.to_owned(), self.id.index)
+        ProcessId::new(self.id.name.to_owned(), self.id.seq)
     }
 
     fn get_name(&self) -> String {
@@ -46,6 +46,7 @@ impl IProcess for Process {
 
     fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError> {
         let command = Process::new_command(config)?;
+        println!("{}", config.name);
         let id = ProcessId::new(config.name.to_owned(), index);
         let mut process = Process {
             id,
@@ -92,6 +93,7 @@ impl IProcess for Process {
     fn get_status(&self) -> ProcessStatus {
         ProcessStatus::new(
             self.id.name.to_owned(),
+            self.id.seq,
             self.state.clone(),
             self.description.to_string(),
         )

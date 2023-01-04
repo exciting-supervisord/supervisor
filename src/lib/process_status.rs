@@ -1,4 +1,6 @@
-#[derive(PartialEq, Clone, Copy)]
+use serde::{Deserialize, Serialize};
+
+#[derive(PartialEq, Clone, Copy, Deserialize, Serialize)]
 pub enum ProcessState {
     Stopped,
     Starting,
@@ -40,8 +42,10 @@ impl std::fmt::Display for ProcessState {
     }
 }
 
+#[derive(Deserialize, Serialize)]
 pub struct ProcessStatus {
     name: String,
+    seq: u32,
     state: ProcessState,
     description: String,
 }
@@ -50,16 +54,17 @@ impl std::fmt::Display for ProcessStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "{}\t\t\t{}\t\t{}",
-            self.name, self.state, self.description
+            "{}:{}\t\t\t{}\t\t{}",
+            self.name, self.seq, self.state, self.description
         )
     }
 }
 
 impl ProcessStatus {
-    pub fn new(name: String, state: ProcessState, description: String) -> Self {
+    pub fn new(name: String, seq: u32, state: ProcessState, description: String) -> Self {
         ProcessStatus {
             name,
+            seq,
             state,
             description,
         }

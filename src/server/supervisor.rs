@@ -6,7 +6,9 @@ use std::vec::Vec;
 use lib::config::{Config, ProgramConfig};
 use lib::process_id::ProcessId;
 use lib::process_status::{ProcessState, ProcessStatus};
-use lib::response::{Error as RpcError, OutputMessage as RpcOutput, Response as RpcResponse};
+use lib::response::{
+    Action, Error as RpcError, OutputMessage as RpcOutput, Response as RpcResponse,
+};
 
 use process::*;
 
@@ -105,7 +107,7 @@ impl Supervisor {
 
         for process_id in turn_on {
             let program_conf = next_conf.programs.get(process_id.name.as_str()).unwrap();
-            self.add_process(program_conf, process_id.index);
+            self.add_process(program_conf, process_id.seq);
         }
     }
 
@@ -124,10 +126,10 @@ impl Supervisor {
         names
             .iter()
             .map(|x| {
-                let (name, index) = x.split_once(":").expect("return Invalid argument"); // ? 클라이언트에서 처리하는게 맞을 지도?
+                let (name, seq) = x.split_once(":").expect("return Invalid argument"); // ? 클라이언트에서 처리하는게 맞을 지도?
                 ProcessId {
                     name: name.to_owned(),
-                    index: index.parse::<u32>().expect("parse fail"),
+                    seq: seq.parse::<u32>().expect("parse fail"),
                 }
             })
             .collect::<Vec<ProcessId>>()
@@ -158,10 +160,11 @@ impl Supervisor {
     pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
         let inputs = self.convert_to_process_ids(&names);
 
-        inputs
+        let act = inputs
             .iter()
             .map(|id| self.try_order_once(id, "start"))
-            .collect::<RpcResponse>()
+            .collect::<Action>();
+        RpcResponse::Action(act)
     }
 
     // Stop(name) -> Result( OutputMessage, Error)
@@ -169,10 +172,11 @@ impl Supervisor {
     pub fn stop(&mut self, names: Vec<String>) -> RpcResponse {
         let inputs = self.convert_to_process_ids(&names);
 
-        inputs
+        let act = inputs
             .iter()
             .map(|id| self.try_order_once(id, "stop"))
-            .collect::<RpcResponse>()
+            .collect::<Action>();
+        RpcResponse::Action(act)
     }
 
     // Reload() -> ()
@@ -183,5 +187,13 @@ impl Supervisor {
 
     // Status(Vec<name>) -> Result( Vec<ProcessStatus>, Error)
     // where Error: ServiceError + ProcessNotFoundError
-    // pub fn status() {}
+    pub fn status(&self, _: Vec<String>) -> RpcResponse {
+        // 일단 전부..
+        let v: Vec<ProcessStatus> = self
+            .processes
+            .iter()
+            .map(|(_, proc)| proc.get_status())
+            .collect();
+        RpcResponse::Status(v)
+    }
 }

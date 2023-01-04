@@ -36,10 +36,12 @@ fn set_command_handlers<'a, 'b>(
     server: &'a mut UdsRpcServer<'b>,
     supervisor: &'b RefCell<Supervisor>,
 ) {
+    let status = |args| supervisor.borrow_mut().status(args);
     let start = |args| supervisor.borrow_mut().start(args);
     let stop = |args| supervisor.borrow_mut().stop(args);
     // let update = |args| supervisor.update(args);
 
+    server.add_method("status", status);
     server.add_method("start", start);
     server.add_method("stop", stop);
     // server.add_method("update", update);
