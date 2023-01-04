@@ -63,10 +63,10 @@ pub struct ProgramConfig {
 }
 
 impl ProgramConfig {
-    fn new() -> Self {
+    fn new(name: &str) -> Self {
         let exitcodes = vec![0];
         ProgramConfig {
-            name: String::new(),
+            name: name.to_owned(),
             command: Default::default(),
             numprocs: 1,
             autostart: false,
@@ -143,8 +143,8 @@ impl ProgramConfig {
         v.to_owned().parse::<T>().map_err(|_| value_error)
     }
 
-    pub fn from(prop: &ini::Properties) -> Result<Self, Box<dyn Error>> {
-        let mut config = ProgramConfig::new();
+    pub fn from(name: &str, prop: &ini::Properties) -> Result<Self, Box<dyn Error>> {
+        let mut config = ProgramConfig::new(name);
         for (k, v) in prop.iter() {
             match k {
                 "command" => config.command = v.split(' ').map(|x| x.to_owned()).collect(),
@@ -240,7 +240,7 @@ impl Config {
                 Some(sec) => {
                     if let Some((key, value)) = sec.split_once(":") {
                         if let "program" = key {
-                            programs.insert(value.to_owned(), ProgramConfig::from(prop)?);
+                            programs.insert(value.to_owned(), ProgramConfig::from(value, prop)?);
                         }
                     }
                 }
@@ -358,7 +358,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[test] // FIXME
     fn test_program_invalid_value_umask() {
         let c = Config::from("./src/lib/config/test/program_invalid_value_umask.ini");
         assert_eq!(
@@ -429,7 +429,7 @@ mod tests {
 
         expected
             .programs
-            .insert("a".to_owned(), ProgramConfig::new());
+            .insert("a".to_owned(), ProgramConfig::new("a"));
 
         let program_config = expected.programs.get_mut("a").unwrap();
         program_config.command.push("/bin/ls".to_owned());
