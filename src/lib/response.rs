@@ -1,37 +1,57 @@
 use serde::{Deserialize, Serialize};
 
-// pub type Response = Result<OutputMessage, Error>;
+use super::process_status::ProcessStatus;
 
 #[derive(Deserialize, Serialize)]
-pub struct Response {
-    pub list: Vec<Result<OutputMessage, Error>>,
+pub enum Response {
+    Action(Action),
+    Status(Vec<ProcessStatus>),
 }
 
 impl Response {
+    pub fn from_output(out: OutputMessage) -> Self {
+        let mut res = Action::new();
+        res.add(Ok(out));
+        Response::Action(res)
+    }
+
+    pub fn from_err(err: Error) -> Self {
+        let mut res = Action::new();
+        res.add(Err(err));
+        Response::Action(res)
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct Action {
+    pub list: Vec<Result<OutputMessage, Error>>,
+}
+
+impl Action {
     pub fn new() -> Self {
-        Response { list: Vec::new() }
+        Action { list: Vec::new() }
     }
 
     pub fn add(&mut self, res: Result<OutputMessage, Error>) {
         self.list.push(res);
     }
 
-    pub fn from_err(err: Error) -> Self {
-        let mut res = Response::new();
-        res.add(Err(err));
-        res
-    }
+    // pub fn from_err(err: Error) -> Self {
+    //     let mut res = Action::new();
+    //     res.add(Err(err));
+    //     res
+    // }
 
-    pub fn from_output(out: OutputMessage) -> Self {
-        let mut res = Response::new();
-        res.add(Ok(out));
-        res
-    }
+    // pub fn from_output(out: OutputMessage) -> Self {
+    //     let mut res = Action::new();
+    //     res.add(Ok(out));
+    //     res
+    // }
 }
 
-impl FromIterator<Result<OutputMessage, Error>> for Response {
+impl FromIterator<Result<OutputMessage, Error>> for Action {
     fn from_iter<T: IntoIterator<Item = Result<OutputMessage, Error>>>(iter: T) -> Self {
-        let mut res = Response::new();
+        let mut res = Action::new();
 
         for i in iter {
             res.list.push(i);
