@@ -36,10 +36,12 @@ fn set_command_handlers<'a, 'b>(
     server: &'a mut UdsRpcServer<'b>,
     supervisor: &'b RefCell<Supervisor>,
 ) {
+    let status = |args| supervisor.borrow_mut().status(args);
     let start = |args| supervisor.borrow_mut().start(args);
     let stop = |args| supervisor.borrow_mut().stop(args);
     // let update = |args| supervisor.update(args);
 
+    server.add_method("status", status);
     server.add_method("start", start);
     server.add_method("stop", stop);
     // server.add_method("update", update);
@@ -60,14 +62,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => lib::exit_with_error(e),
     };
 
-    set_command_handlers(&mut server, &supervisor); // 'a 'b
+    set_command_handlers(&mut server, &supervisor);
 
+    let mut x = 0;
     loop {
         server.try_handle_client();
         supervisor.borrow_mut().supervise()?;
 
-        thread::sleep(Duration::from_millis(100));
-        println!("loop");
+        thread::sleep(Duration::from_millis(500));
+        println!("loop: {x}");
+        x += 1;
         if SIGNALED.load(Ordering::Relaxed) {
             println!("Signal detected. cleaning up...");
             break;

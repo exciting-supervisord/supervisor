@@ -1,14 +1,17 @@
 use std::fs::File;
 use std::process::{Child, Command, Stdio};
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 
 use lib::config::{AutoRestart, ProcessConfig, ProgramConfig};
+use lib::logger::Logger;
 use lib::process_id::ProcessId;
 use lib::process_status::{ProcessState, ProcessStatus};
 use lib::response::Error as RpcError;
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
+
+const INIT_DESCRIPTION: &'static str = "Not started";
 
 pub trait IProcess {
     fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError>;
@@ -17,7 +20,6 @@ pub trait IProcess {
     fn run(&mut self) -> Result<(), RpcError>;
     fn is_stopped(&self) -> bool;
     fn get_status(&self) -> ProcessStatus;
-    fn get_name(&self) -> String;
     fn get_id(&self) -> ProcessId;
 }
 
@@ -26,7 +28,6 @@ pub struct Process {
     pub command: Command,
     pub started_at: Option<Instant>,
     pub stop_at: Option<Instant>,
-    pub exited_at: Option<SystemTime>, //?
     pub description: String,
     id: ProcessId,
     current_try: u32,
@@ -37,15 +38,12 @@ pub struct Process {
 
 impl IProcess for Process {
     fn get_id(&self) -> ProcessId {
-        ProcessId::new(self.id.name.to_owned(), self.id.index)
-    }
-
-    fn get_name(&self) -> String {
-        self.id.name.to_owned()
+        ProcessId::new(self.id.name.to_owned(), self.id.seq)
     }
 
     fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError> {
         let command = Process::new_command(config)?;
+        println!("{}", config.name);
         let id = ProcessId::new(config.name.to_owned(), index);
         let mut process = Process {
             id,
@@ -55,9 +53,8 @@ impl IProcess for Process {
             current_try: 0,
             started_at: None,
             stop_at: None,
-            exited_at: None,
             exit_status: None,
-            description: String::from("Not started"),
+            description: String::from(INIT_DESCRIPTION),
             conf: ProcessConfig::from(config),
         };
 
@@ -72,7 +69,7 @@ impl IProcess for Process {
             return Err(RpcError::ProcessAlreadyStarted(self.id.name.to_owned()));
         }
         self.started_at = Some(Instant::now());
-        self.state = ProcessState::Starting;
+        self.goto(ProcessState::Starting, format!(""));
         self.spawn_process()
     }
 
@@ -80,7 +77,7 @@ impl IProcess for Process {
         if !self.state.stopable() {
             return Err(RpcError::ProcessNotRunning(self.id.name.to_owned()));
         }
-        self.state = ProcessState::Stopping;
+        self.goto(ProcessState::Stopping, format!(""));
         self.stop_at = Some(Instant::now());
         self.send_signal(self.conf.stopsignal)
     }
@@ -92,6 +89,7 @@ impl IProcess for Process {
     fn get_status(&self) -> ProcessStatus {
         ProcessStatus::new(
             self.id.name.to_owned(),
+            self.id.seq,
             self.state.clone(),
             self.description.to_string(),
         )
@@ -154,9 +152,8 @@ impl Process {
 
     fn autorestart(&mut self) -> Result<(), RpcError> {
         self.spawn_process()?;
-        self.state = ProcessState::Starting;
+        self.goto(ProcessState::Starting, format!(""));
         self.current_try = 0;
-        self.exited_at = None;
         self.exit_status = None;
         Ok(())
     }
@@ -177,20 +174,31 @@ impl Process {
     fn starting(&mut self) {
         if self.is_process_alive() {
             if self.started_at.unwrap().elapsed().as_secs() > self.conf.startsecs {
-                self.state = ProcessState::Running;
+                self.goto(
+                    ProcessState::Running,
+                    format!("pid {}, uptime 0:00:00", self.exec.as_ref().unwrap().id(),),
+                );
             }
         } else {
-            self.state = ProcessState::Backoff;
+            self.goto(
+                ProcessState::Backoff,
+                format!("Exited too quickly (process log may have details)"),
+            );
             self.current_try += 1;
         }
     }
 
     fn running(&mut self) {
         if self.is_process_alive() {
-            // set description using current time & started_at
+            let time_u64 = self.started_at.unwrap().elapsed().as_secs();
+            let hours = time_u64 / 3600;
+            let mins = (time_u64 % 3600) / 60;
+            let secs = time_u64 % 60;
+            let time = format!("{}:{:02}:{:02}", hours, mins, secs);
+            self.description = format!("pid {}, uptime {}", self.exec.as_ref().unwrap().id(), time);
             return;
         }
-        self.state = ProcessState::Exited;
+        self.goto(ProcessState::Exited, Logger::get_formated_timestamp());
     }
 
     fn backoff(&mut self) -> Result<(), RpcError> {
@@ -198,7 +206,7 @@ impl Process {
             self.state = ProcessState::Fatal;
         } else {
             self.spawn_process()?;
-            self.state = ProcessState::Starting;
+            self.goto(ProcessState::Starting, format!(""));
         }
         Ok(())
     }
@@ -210,39 +218,34 @@ impl Process {
                 self.send_signal(Signal::SIGKILL)?;
             }
         } else {
-            self.state = ProcessState::Stopped;
-            // set description
+            self.goto(ProcessState::Stopped, Logger::get_formated_timestamp());
         }
         Ok(())
-    }
-
-    fn stopped(&mut self) {
-        // ?
     }
 
     fn exited(&mut self) -> Result<(), RpcError> {
         let exitcodes = &self.conf.exitcodes;
         let autorestart = self.conf.autorestart;
-        self.state = ProcessState::Exited;
 
         match autorestart {
             AutoRestart::Always => self.autorestart()?,
-            AutoRestart::Never => self.exited_at = Some(SystemTime::now()),
-            AutoRestart::Unexpected => {
-                let none = self.exit_status.as_mut().and_then(|code| {
-                    exitcodes
-                        .contains(code)
-                        .then(|| self.exited_at = Some(SystemTime::now()))
-                });
-                if let None = none {
+            AutoRestart::Unexpected => match self.exit_status {
+                Some(ref code) if !exitcodes.contains(code) => {
                     self.autorestart()?;
                 }
-            }
+                _ => {}
+            },
+            AutoRestart::Never => {}
         }
         Ok(())
     }
 
-    fn fatal(&mut self) {
-        // ?
+    fn stopped(&mut self) {}
+
+    fn fatal(&mut self) {}
+
+    fn goto(&mut self, state: ProcessState, description: String) {
+        self.state = state;
+        self.description = description;
     }
 }

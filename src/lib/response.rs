@@ -1,37 +1,57 @@
 use serde::{Deserialize, Serialize};
 
-// pub type Response = Result<OutputMessage, Error>;
+use super::process_status::ProcessStatus;
 
 #[derive(Deserialize, Serialize)]
-pub struct Response {
-    pub list: Vec<Result<OutputMessage, Error>>,
+pub enum Response {
+    Action(Action),
+    Status(Vec<ProcessStatus>),
 }
 
 impl Response {
+    pub fn from_output(out: OutputMessage) -> Self {
+        let mut res = Action::new();
+        res.add(Ok(out));
+        Response::Action(res)
+    }
+
+    pub fn from_err(err: Error) -> Self {
+        let mut res = Action::new();
+        res.add(Err(err));
+        Response::Action(res)
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct Action {
+    pub list: Vec<Result<OutputMessage, Error>>,
+}
+
+impl Action {
     pub fn new() -> Self {
-        Response { list: Vec::new() }
+        Action { list: Vec::new() }
     }
 
     pub fn add(&mut self, res: Result<OutputMessage, Error>) {
         self.list.push(res);
     }
 
-    pub fn from_err(err: Error) -> Self {
-        let mut res = Response::new();
-        res.add(Err(err));
-        res
-    }
+    // pub fn from_err(err: Error) -> Self {
+    //     let mut res = Action::new();
+    //     res.add(Err(err));
+    //     res
+    // }
 
-    pub fn from_output(out: OutputMessage) -> Self {
-        let mut res = Response::new();
-        res.add(Ok(out));
-        res
-    }
+    // pub fn from_output(out: OutputMessage) -> Self {
+    //     let mut res = Action::new();
+    //     res.add(Ok(out));
+    //     res
+    // }
 }
 
-impl FromIterator<Result<OutputMessage, Error>> for Response {
+impl FromIterator<Result<OutputMessage, Error>> for Action {
     fn from_iter<T: IntoIterator<Item = Result<OutputMessage, Error>>>(iter: T) -> Self {
-        let mut res = Response::new();
+        let mut res = Action::new();
 
         for i in iter {
             res.list.push(i);
@@ -45,6 +65,7 @@ pub enum Error {
     FileFormat(String),
     FileOpenError(String),
     Service(String),
+    InvalidRequest(String),
     ProcessNotFound(String),
     ProcessNotRunning(String),
     ProcessAlreadyStarted(String),
@@ -64,6 +85,10 @@ impl Error {
         Error::Service(s.to_owned())
     }
 
+    pub fn invalid_request(s: &str) -> Self {
+        Error::InvalidRequest(s.to_owned())
+    }
+
     pub fn spawn(s: &str) -> Self {
         Error::ProcessSpawnError(s.to_owned())
     }
@@ -75,6 +100,7 @@ impl std::fmt::Display for Error {
             Error::FileFormat(ref s) => write!(f, "{s}: Invalid configuraion file."),
             Error::FileOpenError(ref s) => write!(f, "{s}: can not open file."),
             Error::Service(ref s) => write!(f, "{s}: Service not available."),
+            Error::InvalidRequest(ref s) => write!(f, "Invalid Request: {s}"),
             Error::ProcessNotFound(ref s) => write!(f, "{s}: no such process."),
             Error::ProcessNotRunning(ref s) => write!(f, "{s}: not running."),
             Error::ProcessAlreadyStarted(ref s) => write!(f, "{s}: already started."),

@@ -66,21 +66,24 @@ impl Net {
         stream.read_to_string(&mut line)?;
         let responses = serde_json::from_str::<Response>(&line)?;
 
-        responses.list.iter().for_each(|res| match res {
-            Ok(o) => println!("{o}"),
-            Err(e) => eprintln!("{e}"),
-        });
+        match responses {
+            Response::Action(act) => act.list.iter().for_each(|res| match res {
+                Ok(o) => println!("{o}"),
+                Err(e) => eprintln!("{e}"),
+            }),
+            Response::Status(stat) => stat.iter().for_each(|x| println!("{x}")),
+        }
         Ok(())
     }
 
     pub fn communicate_with_server(&mut self, words: Vec<&str>) {
         self.stream = Net::connect(self.sock_path.as_str());
         if let Err(e) = self.send_command(words) {
-            eprintln!("Service Temporary Unavailable: {e:?}");
+            eprintln!("Service Temporary Unavailable: {e}");
             self.disconnect();
         }
         if let Err(e) = self.recv_response() {
-            eprintln!("Service Temporary Unavailable: {e:?}");
+            eprintln!("Service Temporary Unavailable: {e}");
             self.disconnect();
         }
     }

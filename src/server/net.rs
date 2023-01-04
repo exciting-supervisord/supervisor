@@ -44,22 +44,55 @@ impl<'a> UdsRpcServer<'a> {
     fn get_request(&self, socket: &UnixStream) -> Result<Request, RpcError> {
         let mut deserializer = serde_json::Deserializer::from_reader(socket);
         let req = Request::deserialize(&mut deserializer)
-            .map_err(|_| RpcError::service("request not received"))?;
+            .map_err(|_| RpcError::service("request not received"))?; // FIXME 타임아웃..?
+
+        if let None = self.methods.get(&req.method) {
+            return Err(RpcError::invalid_request("method"));
+        }
+
+        if req.method != "open" {
+            if let Err(e) = self.args_validation(&req.args) {
+                return Err(e);
+            }
+        }
         Ok(req)
+    }
+
+    fn args_validation(&self, args: &Vec<String>) -> Result<(), RpcError> {
+        println!("{:?}", args); // TODO DELETE
+        for a in args {
+            if a == "all" {
+                continue;
+            }
+
+            match a.split_once(":") {
+                None => return Err(RpcError::invalid_request("argument")),
+                Some((_, seq)) => {
+                    if let Err(_) = seq.parse::<u32>() {
+                        return Err(RpcError::invalid_request(a));
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn handle_client(&mut self, socket: &UnixStream) {
         let req = match self.get_request(socket) {
             Ok(o) => o,
             Err(e) => {
-                serde_json::to_writer(socket, &e);
+                serde_json::to_writer(socket, &Response::from_err(e));
                 socket.shutdown(std::net::Shutdown::Both);
                 return;
             }
         };
 
+        let method = req.method.clone();
         let res = self.exec_method(req);
         serde_json::to_writer(socket, &res).or_else(|_| socket.shutdown(std::net::Shutdown::Both));
+        if method == "shutdown" {
+            std::process::exit(0);
+        }
     }
 
     pub fn try_handle_client(&mut self) -> bool {
