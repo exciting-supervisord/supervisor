@@ -50,14 +50,16 @@ impl<'a> UdsRpcServer<'a> {
             return Err(RpcError::invalid_request("method"));
         }
 
-        if let Err(e) = self.args_validation(&req.args) {
-            return Err(e);
+        if req.method != "open" {
+            if let Err(e) = self.args_validation(&req.args) {
+                return Err(e);
+            }
         }
         Ok(req)
     }
 
     fn args_validation(&self, args: &Vec<String>) -> Result<(), RpcError> {
-        println!("{:?}", args);
+        println!("{:?}", args); // TODO DELETE
         for a in args {
             if a == "all" {
                 continue;
@@ -85,8 +87,12 @@ impl<'a> UdsRpcServer<'a> {
             }
         };
 
+        let method = req.method.clone();
         let res = self.exec_method(req);
         serde_json::to_writer(socket, &res).or_else(|_| socket.shutdown(std::net::Shutdown::Both));
+        if method == "shutdown" {
+            std::process::exit(0);
+        }
     }
 
     pub fn try_handle_client(&mut self) -> bool {
