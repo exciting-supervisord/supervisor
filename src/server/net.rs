@@ -1,5 +1,5 @@
 use lib::request::Request;
-use lib::response::{Action, Error as RpcError, Response};
+use lib::response::{Error as RpcError, Response};
 
 use serde::Deserialize;
 
@@ -44,7 +44,7 @@ impl<'a> UdsRpcServer<'a> {
     fn get_request(&self, socket: &UnixStream) -> Result<Request, RpcError> {
         let mut deserializer = serde_json::Deserializer::from_reader(socket);
         let req = Request::deserialize(&mut deserializer)
-            .map_err(|_| RpcError::service("request not received"))?;
+            .map_err(|_| RpcError::service("request not received"))?; // FIXME 타임아웃..?
 
         if let None = self.methods.get(&req.method) {
             return Err(RpcError::invalid_request("method"));
@@ -53,7 +53,6 @@ impl<'a> UdsRpcServer<'a> {
         if let Err(e) = self.args_validation(&req.args) {
             return Err(e);
         }
-
         Ok(req)
     }
 

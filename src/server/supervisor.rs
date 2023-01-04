@@ -5,7 +5,7 @@ use std::vec::Vec;
 
 use lib::config::{Config, ProgramConfig};
 use lib::process_id::ProcessId;
-use lib::process_status::{ProcessState, ProcessStatus};
+use lib::process_status::ProcessStatus;
 use lib::response::{
     Action, Error as RpcError, OutputMessage as RpcOutput, Response as RpcResponse,
 };
@@ -143,11 +143,11 @@ impl Supervisor {
         } else {
             match order {
                 "start" => match self.processes.get_mut(id).unwrap().start() {
-                    Err(e) => Err(RpcError::Service(e.to_string())), // FIXME 추상화....!
+                    Err(e) => Err(e), // FIXME 추상화....!
                     Ok(_) => Ok(RpcOutput::new(id.name.as_str(), "started")),
                 },
                 "stop" => match self.processes.get_mut(id).unwrap().stop() {
-                    Err(e) => Err(RpcError::Service(e.to_string())), // FIXME ?
+                    Err(e) => Err(e),
                     Ok(_) => Ok(RpcOutput::new(id.name.as_str(), "stopped")),
                 },
                 _ => panic!("logic error"),
@@ -187,12 +187,28 @@ impl Supervisor {
 
     // Status(Vec<name>) -> Result( Vec<ProcessStatus>, Error)
     // where Error: ServiceError + ProcessNotFoundError
-    pub fn status(&self, _: Vec<String>) -> RpcResponse {
-        // 일단 전부..
-        let v: Vec<ProcessStatus> = self
-            .processes
+    pub fn status(&self, words: Vec<String>) -> RpcResponse {
+        if words.contains(&String::from("all")) || words.len() == 0 {
+            let v: Vec<ProcessStatus> = self
+                .processes
+                .iter()
+                .map(|(_, proc)| proc.get_status())
+                .collect();
+            return RpcResponse::Status(v);
+        }
+
+        let ids: Vec<ProcessId> = words
             .iter()
-            .map(|(_, proc)| proc.get_status())
+            .map(|id| {
+                let (name, seq) = id.split_once(":").unwrap();
+                let seq = seq.parse::<u32>().unwrap();
+                ProcessId::new(name.to_owned(), seq)
+            })
+            .collect();
+
+        let v: Vec<ProcessStatus> = ids
+            .iter()
+            .map(|id| self.processes.get(id).unwrap().get_status())
             .collect();
         RpcResponse::Status(v)
     }
