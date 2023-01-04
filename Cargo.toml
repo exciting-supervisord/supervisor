@@ -9,8 +9,8 @@ edition = "2021"
 libc = "0.2.0"
 nix = "0.26.1"
 rust-ini = "0.18.0"
-jsonrpc-ipc-server = "18.0.0"
-jsonrpc = {version = "0.14.0", features = ["simple_uds"]}
+# jsonrpc-ipc-server = "18.0.0"
+# jsonrpc = {version = "0.14.0", features = ["simple_uds"]}
 serde_json = "1.0.91"
 serde = { version = "1.0.152", features = ["derive"] }
 
