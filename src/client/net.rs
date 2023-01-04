@@ -79,11 +79,11 @@ impl Net {
     pub fn communicate_with_server(&mut self, words: Vec<&str>) {
         self.stream = Net::connect(self.sock_path.as_str());
         if let Err(e) = self.send_command(words) {
-            eprintln!("Service Temporary Unavailable: {e:?}");
+            eprintln!("Service Temporary Unavailable: {e}");
             self.disconnect();
         }
         if let Err(e) = self.recv_response() {
-            eprintln!("Service Temporary Unavailable: {e:?}");
+            eprintln!("Service Temporary Unavailable: {e}");
             self.disconnect();
         }
     }

@@ -65,6 +65,7 @@ pub enum Error {
     FileFormat(String),
     FileOpenError(String),
     Service(String),
+    InvalidRequest(String),
     ProcessNotFound(String),
     ProcessNotRunning(String),
     ProcessAlreadyStarted(String),
@@ -84,6 +85,10 @@ impl Error {
         Error::Service(s.to_owned())
     }
 
+    pub fn invalid_request(s: &str) -> Self {
+        Error::InvalidRequest(s.to_owned())
+    }
+
     pub fn spawn(s: &str) -> Self {
         Error::ProcessSpawnError(s.to_owned())
     }
@@ -95,6 +100,7 @@ impl std::fmt::Display for Error {
             Error::FileFormat(ref s) => write!(f, "{s}: Invalid configuraion file."),
             Error::FileOpenError(ref s) => write!(f, "{s}: can not open file."),
             Error::Service(ref s) => write!(f, "{s}: Service not available."),
+            Error::InvalidRequest(ref s) => write!(f, "Invalid Request: {s}"),
             Error::ProcessNotFound(ref s) => write!(f, "{s}: no such process."),
             Error::ProcessNotRunning(ref s) => write!(f, "{s}: not running."),
             Error::ProcessAlreadyStarted(ref s) => write!(f, "{s}: already started."),

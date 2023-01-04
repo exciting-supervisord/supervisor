@@ -62,14 +62,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => lib::exit_with_error(e),
     };
 
-    set_command_handlers(&mut server, &supervisor); // 'a 'b
+    set_command_handlers(&mut server, &supervisor);
 
+    let mut x = 0;
     loop {
         server.try_handle_client();
         supervisor.borrow_mut().supervise()?;
 
-        thread::sleep(Duration::from_millis(100));
-        println!("loop");
+        thread::sleep(Duration::from_millis(500));
+        println!("loop: {x}");
+        x += 1;
         if SIGNALED.load(Ordering::Relaxed) {
             println!("Signal detected. cleaning up...");
             break;
