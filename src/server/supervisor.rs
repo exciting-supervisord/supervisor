@@ -26,9 +26,7 @@ impl Supervisor {
     }
 
     pub fn new(file_path: &str, config: Config) -> Result<Self, Box<dyn std::error::Error>> {
-        let file_path = file_path.to_owned();
         let mut processes = HashMap::new();
-        let trashes = Vec::new();
 
         for (_, v) in config.programs.iter() {
             for index in 0..v.numprocs {
@@ -36,13 +34,20 @@ impl Supervisor {
                 processes.insert(process.get_id(), process);
             }
         }
-
         Ok(Supervisor {
-            file_path,
+            file_path: file_path.to_owned(),
             config,
             processes,
-            trashes,
+            trashes: Vec::new(),
         })
+    }
+
+    pub fn supervise(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        for (_, process) in self.processes.iter_mut() {
+            process.run()?;
+        }
+        self.garbage_collect();
+        Ok(())
     }
 
     fn garbage_collect(&mut self) {
@@ -54,12 +59,44 @@ impl Supervisor {
             .collect();
     }
 
-    pub fn supervise(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        for (_, process) in self.processes.iter_mut() {
-            process.run()?;
+    pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
+        let inputs = self.convert_to_process_ids(&names);
+
+        let act = inputs
+            .iter()
+            .map(|id| self.try_order_once(id, "start"))
+            .collect::<Action>();
+        RpcResponse::Action(act)
+    }
+
+    pub fn stop(&mut self, names: Vec<String>) -> RpcResponse {
+        let inputs = self.convert_to_process_ids(&names);
+
+        let act = inputs
+            .iter()
+            .map(|id| self.try_order_once(id, "stop"))
+            .collect::<Action>();
+        RpcResponse::Action(act)
+    }
+
+    // Reload() -> ()
+    pub fn reload(&mut self) {
+        self.cleanup_processes();
+
+        let config = mem::take(&mut self.config); // TODO 생각해보기: 이게 맞나..?
+        let turn_on = config.process_list();
+
+        for process_id in turn_on {
+            let program_conf = config.programs.get(process_id.name.as_str()).unwrap();
+            self.add_process(program_conf, process_id.seq);
         }
-        self.garbage_collect();
-        Ok(())
+        self.config = config
+    }
+
+    //     Shutdown() -> ()
+    pub fn shutdown(&mut self) -> RpcResponse {
+        self.cleanup_processes();
+        RpcResponse::from_output(RpcOutput::new("taskmaster", "shutdown"))
     }
 
     fn remove_process(&mut self, process_id: &ProcessId) -> Result<(), RpcError> {
@@ -78,8 +115,6 @@ impl Supervisor {
         self.processes.insert(process.get_id(), process);
         Ok(())
     }
-
-    // pub fn status(&self, names: Vec<String>) -> Result<Vec<ProcessStatus>, rpc_error::Error> {}
 
     fn affect(&mut self, next_conf: &Config) {
         let next_list = next_conf.process_list();
@@ -150,46 +185,6 @@ impl Supervisor {
                 _ => panic!("logic error"),
             }
         }
-    }
-
-    pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
-        let inputs = self.convert_to_process_ids(&names);
-
-        let act = inputs
-            .iter()
-            .map(|id| self.try_order_once(id, "start"))
-            .collect::<Action>();
-        RpcResponse::Action(act)
-    }
-
-    pub fn stop(&mut self, names: Vec<String>) -> RpcResponse {
-        let inputs = self.convert_to_process_ids(&names);
-
-        let act = inputs
-            .iter()
-            .map(|id| self.try_order_once(id, "stop"))
-            .collect::<Action>();
-        RpcResponse::Action(act)
-    }
-
-    // Reload() -> ()
-    pub fn reload(&mut self) {
-        self.cleanup_processes();
-
-        let config = mem::take(&mut self.config); // TODO 생각해보기: 이게 맞나..?
-        let turn_on = config.process_list();
-
-        for process_id in turn_on {
-            let program_conf = config.programs.get(process_id.name.as_str()).unwrap();
-            self.add_process(program_conf, process_id.seq);
-        }
-        self.config = config
-    }
-
-    //     Shutdown() -> ()
-    pub fn shutdown(&mut self) -> RpcResponse {
-        self.cleanup_processes();
-        RpcResponse::from_output(RpcOutput::new("taskmaster", "shutdown"))
     }
 
     fn cleanup_processes(&mut self) {
