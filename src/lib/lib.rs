@@ -8,6 +8,6 @@ pub mod response;
 pub const CONF_FILE: &'static str = "./general.ini";
 
 pub fn exit_with_error(err: Box<dyn std::error::Error>) -> ! {
-    eprintln!("{err}");
+    logger::LOG.crit(&format!("{err}"));
     std::process::exit(1)
 }
