@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::process_status::ProcessStatus;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub enum Response {
     Action(Action),
     Status(Vec<ProcessStatus>),
@@ -22,7 +22,7 @@ impl Response {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Action {
     pub list: Vec<Result<OutputMessage, Error>>,
 }
