@@ -16,10 +16,10 @@ help \t\tPrint a list of available actions\nhelp <action>\tPrint help for <actio
 // pub const HELP_AVAIL: &'static str = "avail\t\t\tDisplay all configured processes";
 pub const HELP_QUIT: &'static str = "quit\tExit the supervisor shell.";
 pub const HELP_EXIT: &'static str = "exit\tExit the supervisor shell.";
-pub const HELP_SHUTDOWN: &'static str = "shutdown\t\tShut the remote supervisord down.";
+pub const HELP_SHUTDOWN: &'static str = "shutdown\t\tShut the remote taskmasterd down.";
 
 pub const HELP_VERSION: &'static str = "\
-version\t\t\tShow the version of the remote supervisord process";
+version\t\t\tShow the version of the remote taskmasterd process";
 
 pub const HELP_UPDATE: &'static str = "\
 update\t\t\tReload config and add/remove as necessary, and will restart affected programs";
@@ -52,8 +52,8 @@ start <name:seq> <name:seq>	Start multiple processes or groups
 start all			Start all processes";
 
 pub const HELP_OPEN: &'static str = "\
-open <path> 	Connect to a remote supervisord process.
+open <path> 	Connect to a remote taskmasterd process.
 		(for UNIX domain socket, use /path/to/socket)";
 
 pub const HELP_RELOAD: &'static str = "\
-reload 		Restart the remote supervisord.";
+reload 		Restart the remote taskmasterd.";

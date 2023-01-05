@@ -69,7 +69,7 @@ impl IProcess for Process {
     }
 
     fn start(&mut self) -> Result<RpcOutput, RpcError> {
-        let name = self.id.name.to_owned();
+        let name = self.id.to_string();
 
         if !self.state.startable() {
             return Err(RpcError::ProcessAlreadyStarted(name));
@@ -81,7 +81,7 @@ impl IProcess for Process {
     }
 
     fn stop(&mut self) -> Result<RpcOutput, RpcError> {
-        let name = self.id.name.to_owned();
+        let name = self.id.to_string();
 
         if !self.state.stopable() {
             return Err(RpcError::ProcessNotRunning(name));
@@ -158,7 +158,7 @@ impl Process {
         unsafe {
             let passwd = getpwnam(name_ptr);
             if passwd.is_null() {
-                let msg = format!("there is no user named {user_name}. the process uid will be set to supervisord's.");
+                let msg = format!("there is no user named {user_name}. the process uid will be set to taskmasterd's.");
                 LOG.warn(msg.as_str());
                 getuid()
             } else {
@@ -203,7 +203,10 @@ impl Process {
                 self.exit_status = status.code();
                 false
             }
-            Err(e) => panic!("there is no process: {e}"), // FIXME ㅎㅡㅁ..?
+            Err(e) => {
+                LOG.crit(&format!("{e}"));
+                true
+            }
         }
     }
 

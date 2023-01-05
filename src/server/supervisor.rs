@@ -89,17 +89,18 @@ impl Supervisor {
 
         for process_id in turn_on {
             let program_conf = config.programs.get(process_id.name.as_str()).unwrap();
-            self.add_process(program_conf, process_id.seq);
+            self.add_process(program_conf, process_id.seq)
+                .unwrap_or_default();
         }
         self.config = config;
-        RpcResponse::from_output(RpcOutput::new("taskmaster", "reload"))
+        RpcResponse::from_output(RpcOutput::new("taskmasterd", "reload"))
     }
 
     //     Shutdown() -> ()
     pub fn shutdown(&mut self, _: Vec<String>) -> RpcResponse {
         LOG.info("handle request - shutdown");
         self.cleanup_processes();
-        RpcResponse::from_output(RpcOutput::new("taskmaster", "shutdown"))
+        RpcResponse::from_output(RpcOutput::new("taskmasterd", "shutdown"))
     }
 
     fn remove_process(&mut self, process_id: &ProcessId) -> Result<(), RpcError> {
@@ -137,12 +138,13 @@ impl Supervisor {
         }
 
         for process_id in turn_off {
-            self.remove_process(&process_id);
+            self.remove_process(&process_id).unwrap_or_default();
         }
 
         for process_id in turn_on {
             let program_conf = next_conf.programs.get(process_id.name.as_str()).unwrap();
-            self.add_process(program_conf, process_id.seq);
+            self.add_process(program_conf, process_id.seq)
+                .unwrap_or_default();
         }
     }
 
@@ -177,7 +179,7 @@ impl Supervisor {
         operation: fn(id: &mut Process) -> Result<RpcOutput, RpcError>,
     ) -> Result<RpcOutput, RpcError> {
         if !self.config.process_list().contains(id) {
-            return Err(RpcError::ProcessNotFound(id.name.to_owned()));
+            return Err(RpcError::ProcessNotFound(id.to_string()));
         }
 
         let process = self
@@ -191,7 +193,7 @@ impl Supervisor {
         let keys: Vec<ProcessId> = self.processes.iter().map(|(k, _)| k.to_owned()).collect();
 
         for key in keys {
-            self.remove_process(&key);
+            self.remove_process(&key).unwrap_or_default();
         }
 
         // TODO 고민: 선 응답 후 처리?

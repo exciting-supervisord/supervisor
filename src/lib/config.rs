@@ -203,7 +203,7 @@ pub struct GeneralConfig {
 impl GeneralConfig {
     pub fn new() -> Self {
         GeneralConfig {
-            sockfile: "/tmp/supervisord.sock".to_owned(),
+            sockfile: "/tmp/taskmasterd.sock".to_owned(),
         }
     }
 
@@ -276,7 +276,7 @@ mod tests {
     fn test_empty() {
         let expected: Config = Config {
             general: GeneralConfig {
-                sockfile: "/tmp/supervisord.sock".to_owned(),
+                sockfile: "/tmp/taskmasterd.sock".to_owned(),
             },
             programs: Default::default(),
         };
@@ -300,7 +300,7 @@ mod tests {
     fn test_general_no_option() {
         let expected: Config = Config {
             general: GeneralConfig {
-                sockfile: "/tmp/supervisord.sock".to_owned(),
+                sockfile: "/tmp/taskmasterd.sock".to_owned(),
             },
             programs: Default::default(),
         };
@@ -335,7 +335,7 @@ mod tests {
         );
     }
 
-    #[test] // FIXME
+    #[test]
     fn test_program_invalid_value_umask() {
         let c = Config::from("./src/lib/config/test/program_invalid_value_umask.ini");
         assert_eq!(

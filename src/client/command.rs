@@ -1,5 +1,7 @@
 mod command_messages;
 
+use lib::TM_VERSION;
+
 fn check_argument_syntax<'a>(words: Vec<&'a str>, help: Vec<&'a str>) -> Vec<&'a str> {
     for w in &words[1..] {
         let w = *w;
@@ -72,7 +74,6 @@ pub fn print_help(words: Vec<&str>) {
         "exit" => println!("{}", command_messages::HELP_EXIT),
         "version" => println!("{}", command_messages::HELP_VERSION),
         "help" => println!("{}", command_messages::HELP_HELP),
-        // "log" => println!("{}", command_messages::HELP_QUIT), // FIXME
         _ => {
             let s = words[1..].join(" ");
             eprintln!("*** No help on {}", s);
@@ -81,5 +82,5 @@ pub fn print_help(words: Vec<&str>) {
 }
 
 pub fn print_version() {
-    println!("0.0.1"); // FIXME
+    println!("{TM_VERSION}");
 }

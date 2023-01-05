@@ -9,3 +9,9 @@ impl ProcessId {
         ProcessId { name, seq }
     }
 }
+
+impl ToString for ProcessId {
+    fn to_string(&self) -> String {
+        format!("{}:{}", self.name, self.seq)
+    }
+}

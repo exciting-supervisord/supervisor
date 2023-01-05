@@ -22,9 +22,9 @@ name = "lib"
 path = "src/lib/lib.rs"
 
 [[bin]]
-name = "client"
+name = "tmctl"
 path = "src/client/main.rs"
 
 [[bin]]
-name = "server"
+name = "tmd"
 path = "src/server/main.rs"
