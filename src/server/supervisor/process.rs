@@ -9,6 +9,7 @@ use lib::process_id::ProcessId;
 use lib::process_status::{ProcessState, ProcessStatus};
 use lib::response::{Error as RpcError, OutputMessage as RpcOutput};
 
+use nix::libc::getpwnam;
 use nix::sys::signal::{self, Signal};
 use nix::sys::stat::{umask, Mode};
 use nix::unistd::Pid;
@@ -26,7 +27,7 @@ pub trait IProcess {
 }
 
 pub struct Process {
-    pub exec: Option<Child>,
+    pub proc: Option<Child>,
     pub command: Command,
     pub started_at: Option<Instant>,
     pub stop_at: Option<Instant>,
@@ -50,7 +51,7 @@ impl IProcess for Process {
         let mut process = Process {
             id,
             command,
-            exec: None,
+            proc: None,
             state: ProcessState::Stopped,
             current_try: 0,
             started_at: None,
@@ -126,28 +127,39 @@ impl Process {
             .map_err(|e| RpcError::file_open(e.to_string().as_str()))?;
         let stderr = File::create(&conf.stderr_logfile)
             .map_err(|e| RpcError::file_open(e.to_string().as_str()))?;
-
-        let mut exec = Command::new(&conf.command[0]);
-
-        let umask_value = conf.umask.unwrap_or(0o022);
+        let v_uid = Process::get_uid(&conf.user);
+        let v_umask = conf.umask.unwrap_or(0o022);
+        let mut cmd = Command::new(&conf.command[0]);
 
         unsafe {
-            exec.args(&conf.command[1..])
+            cmd.args(&conf.command[1..])
                 .envs(&conf.environment)
                 .stdin(Stdio::null())
                 .stdout(stdout)
                 .stderr(stderr)
-                .uid(0)
+                .uid(v_uid)
                 .pre_exec(move || {
-                    umask(Mode::from_bits(umask_value).unwrap());
+                    umask(Mode::from_bits(v_umask).unwrap());
                     Ok(())
                 });
         }
-        Ok(exec)
+        Ok(cmd)
+    }
+
+    fn get_uid(user_name: &Option<String>) -> u32 {
+        if let None = user_name {
+            return 0;
+        }
+        let user_name = user_name.as_ref().unwrap();
+        let name_ptr = user_name.as_ptr() as *const i8;
+        unsafe {
+            let passwd = getpwnam(name_ptr);
+            (*passwd).pw_uid
+        }
     }
 
     fn spawn_process(&mut self) -> Result<(), RpcError> {
-        self.exec = Some(
+        self.proc = Some(
             self.command
                 .spawn()
                 .map_err(|e| RpcError::spawn(e.to_string().as_str()))?,
@@ -157,7 +169,7 @@ impl Process {
 
     fn send_signal(&mut self, signal: Signal) -> Result<(), RpcError> {
         match signal::kill(
-            Pid::from_raw(self.exec.as_ref().unwrap().id() as i32),
+            Pid::from_raw(self.proc.as_ref().unwrap().id() as i32),
             signal,
         ) {
             Ok(_) => Ok(()),
@@ -174,7 +186,7 @@ impl Process {
     }
 
     fn is_process_alive(&mut self) -> bool {
-        match self.exec.as_mut().unwrap().try_wait() {
+        match self.proc.as_mut().unwrap().try_wait() {
             // alive
             Ok(None) => true,
             // died
@@ -191,7 +203,7 @@ impl Process {
             if self.started_at.unwrap().elapsed().as_secs() > self.conf.startsecs {
                 self.goto(
                     ProcessState::Running,
-                    format!("pid {}, uptime 0:00:00", self.exec.as_ref().unwrap().id(),),
+                    format!("pid {}, uptime 0:00:00", self.proc.as_ref().unwrap().id(),),
                 );
             }
         } else {
@@ -210,7 +222,7 @@ impl Process {
             let mins = (time_u64 % 3600) / 60;
             let secs = time_u64 % 60;
             let time = format!("{}:{:02}:{:02}", hours, mins, secs);
-            self.description = format!("pid {}, uptime {}", self.exec.as_ref().unwrap().id(), time);
+            self.description = format!("pid {}, uptime {}", self.proc.as_ref().unwrap().id(), time);
             return;
         }
         self.goto(ProcessState::Exited, Logger::get_formated_timestamp());
