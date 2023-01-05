@@ -17,6 +17,10 @@ const RIGHT: u8 = 0x43;
 const ENTER: u8 = 0x0a;
 const ESCAPE: u8 = 0x1b;
 const BRACKET: u8 = 0x5b;
+const DELETE1: u8 = 0x33;
+const DELETE2: u8 = 0x7e;
+const KEY_HOME: u8 = 0x48;
+const KEY_END: u8 = 0x46;
 const BACKSPACE: u8 = 0x7f;
 
 #[derive(Debug)]
@@ -24,6 +28,7 @@ enum LineState {
     CHAR,
     ESCAPE,
     ARROW,
+    DELETE,
 }
 
 pub struct Terminal {
@@ -97,13 +102,14 @@ impl Terminal {
         let mut state = LineState::CHAR;
         loop {
             let ch = ffi::getch()?;
+            // println!("{ch}");
             let line_editor = &mut self.history[self.history_index];
 
             match state {
                 LineState::CHAR => match ch {
                     ENTER => break,
                     ESCAPE => state = LineState::ESCAPE,
-                    BACKSPACE => line_editor.delete_char(),
+                    BACKSPACE => line_editor.delete_char_prev(),
                     0x20..=0x7e => line_editor.print_char(ch),
                     _ => {}
                 },
@@ -116,14 +122,24 @@ impl Terminal {
                     }
                 },
                 LineState::ARROW => {
+                    state = LineState::CHAR;
                     match ch {
                         UP => self.history_prev(),
                         DOWN => self.history_next(),
                         LEFT => line_editor.move_cursor_left(1),
                         RIGHT => line_editor.move_cursor_right(1),
+                        DELETE1 => state = LineState::DELETE,
+                        KEY_HOME => line_editor.move_cursor_home(),
+                        KEY_END => line_editor.move_cursor_end(),
                         _ => {}
                     }
+                }
+                LineState::DELETE => {
                     state = LineState::CHAR;
+                    match ch {
+                        DELETE2 => line_editor.delete_char_curr(),
+                        _ => {}
+                    }
                 }
             }
         }

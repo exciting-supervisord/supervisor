@@ -25,6 +25,14 @@ impl LineEditor {
         self.move_cursor(LEFT, count);
     }
 
+    pub fn move_cursor_home(&mut self) {
+        self.move_cursor_left(self.cursor);
+    }
+
+    pub fn move_cursor_end(&mut self) {
+        self.move_cursor_right(self.buffer.len() - self.cursor);
+    }
+
     pub fn move_cursor_right(&mut self, count: usize) {
         if self.cursor + count > self.buffer.len() || count == 0 {
             self.flush_stdout();
@@ -53,8 +61,9 @@ impl LineEditor {
 
     pub fn print_char(&mut self, c: u8) {
         self.buffer.insert(self.cursor, char::from(c));
+        let cursor = self.cursor;
         self.print_remains();
-        self.move_cursor_left(self.buffer.len() - self.cursor);
+        self.move_cursor_left(self.buffer.len() - (cursor + 1));
     }
 
     fn wipe_back(&mut self, count: usize) {
@@ -78,15 +87,26 @@ impl LineEditor {
         print!("{}", '\r');
     }
 
-    pub fn delete_char(&mut self) {
-        if self.cursor == 0 {
-            return;
-        }
-        self.move_cursor_left(1);
+    fn delete_char(&mut self) {
         let before = self.cursor;
         self.buffer.remove(self.cursor);
         self.print_remains();
         self.wipe_back(1);
         self.move_cursor_left(self.cursor - before);
+    }
+
+    pub fn delete_char_prev(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        self.move_cursor_left(1);
+        self.delete_char();
+    }
+
+    pub fn delete_char_curr(&mut self) {
+        if self.cursor == self.buffer.len() {
+            return;
+        }
+        self.delete_char();
     }
 }
