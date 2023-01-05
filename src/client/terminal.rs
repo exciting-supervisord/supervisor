@@ -104,7 +104,8 @@ impl Terminal {
                     ENTER => break,
                     ESCAPE => state = LineState::ESCAPE,
                     BACKSPACE => line_editor.delete_char(),
-                    _ => line_editor.print_char(ch),
+                    0x20..=0x7e => line_editor.print_char(ch),
+                    _ => {}
                 },
                 LineState::ESCAPE => match ch {
                     BRACKET => state = LineState::ARROW,
@@ -120,7 +121,7 @@ impl Terminal {
                         DOWN => self.history_next(),
                         LEFT => line_editor.move_cursor_left(1),
                         RIGHT => line_editor.move_cursor_right(1),
-                        _ => panic!("invalid input"),
+                        _ => {}
                     }
                     state = LineState::CHAR;
                 }
