@@ -203,7 +203,10 @@ impl Process {
                 self.exit_status = status.code();
                 false
             }
-            Err(e) => panic!("there is no process: {e}"), // FIXME ㅎㅡㅁ..?
+            Err(e) => {
+                LOG.crit(&format!("{e}"));
+                true
+            }
         }
     }
 

@@ -335,7 +335,7 @@ mod tests {
         );
     }
 
-    #[test] // FIXME
+    #[test]
     fn test_program_invalid_value_umask() {
         let c = Config::from("./src/lib/config/test/program_invalid_value_umask.ini");
         assert_eq!(
