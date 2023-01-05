@@ -92,14 +92,14 @@ impl Supervisor {
             self.add_process(program_conf, process_id.seq);
         }
         self.config = config;
-        RpcResponse::from_output(RpcOutput::new("supervisord", "reload"))
+        RpcResponse::from_output(RpcOutput::new("taskmasterd", "reload"))
     }
 
     //     Shutdown() -> ()
     pub fn shutdown(&mut self, _: Vec<String>) -> RpcResponse {
         LOG.info("handle request - shutdown");
         self.cleanup_processes();
-        RpcResponse::from_output(RpcOutput::new("supervisord", "shutdown"))
+        RpcResponse::from_output(RpcOutput::new("taskmasterd", "shutdown"))
     }
 
     fn remove_process(&mut self, process_id: &ProcessId) -> Result<(), RpcError> {

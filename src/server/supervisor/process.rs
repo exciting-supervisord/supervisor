@@ -158,7 +158,7 @@ impl Process {
         unsafe {
             let passwd = getpwnam(name_ptr);
             if passwd.is_null() {
-                let msg = format!("there is no user named {user_name}. the process uid will be set to supervisord's.");
+                let msg = format!("there is no user named {user_name}. the process uid will be set to taskmasterd's.");
                 LOG.warn(msg.as_str());
                 getuid()
             } else {
