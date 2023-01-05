@@ -39,11 +39,17 @@ fn set_command_handlers<'a, 'b>(
     let status = |args| supervisor.borrow_mut().status(args);
     let start = |args| supervisor.borrow_mut().start(args);
     let stop = |args| supervisor.borrow_mut().stop(args);
+    let shutdown = |args| supervisor.borrow_mut().shutdown(args);
+    let reload = |args| supervisor.borrow_mut().reload(args);
+    let update = |args| supervisor.borrow_mut().update(args);
     // let update = |args| supervisor.update(args);
 
     server.add_method("status", status);
     server.add_method("start", start);
     server.add_method("stop", stop);
+    server.add_method("shutdown", shutdown);
+    server.add_method("reload", reload);
+    server.add_method("update", update);
     // server.add_method("update", update);
 }
 

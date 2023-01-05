@@ -80,7 +80,7 @@ impl Supervisor {
     }
 
     // Reload() -> ()
-    pub fn reload(&mut self) {
+    pub fn reload(&mut self, _: Vec<String>) -> RpcResponse {
         self.cleanup_processes();
 
         let config = mem::take(&mut self.config); // TODO 생각해보기: 이게 맞나..?
@@ -90,11 +90,12 @@ impl Supervisor {
             let program_conf = config.programs.get(process_id.name.as_str()).unwrap();
             self.add_process(program_conf, process_id.seq);
         }
-        self.config = config
+        self.config = config;
+        RpcResponse::from_output(RpcOutput::new("taskmaster", "reload"))
     }
 
     //     Shutdown() -> ()
-    pub fn shutdown(&mut self) -> RpcResponse {
+    pub fn shutdown(&mut self, _: Vec<String>) -> RpcResponse {
         self.cleanup_processes();
         RpcResponse::from_output(RpcOutput::new("taskmaster", "shutdown"))
     }
@@ -143,7 +144,7 @@ impl Supervisor {
         }
     }
 
-    pub fn update(&mut self, _: &Vec<String>) -> RpcResponse {
+    pub fn update(&mut self, _: Vec<String>) -> RpcResponse {
         let next_conf = match Config::from(&self.file_path) {
             Ok(o) => o,
             Err(e) => return RpcResponse::from_err(RpcError::file_format(e.to_string().as_str())),
