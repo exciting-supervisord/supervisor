@@ -11,7 +11,7 @@ fn replace_std_fd(filename: &str) -> Result<(), Errno> {
     let fd = open(
         filename,
         OFlag::O_RDWR | OFlag::O_APPEND | OFlag::O_CREAT,
-        Mode::all(),
+        Mode::from_bits(0o600).expect("hardcoded mode"),
     )?;
 
     dup2(fd, 0)?;
