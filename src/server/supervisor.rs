@@ -53,7 +53,7 @@ impl Supervisor {
 
     fn garbage_collect(&mut self) {
         self.trashes.iter_mut().for_each(|p| p.run().expect("")); // FIXME
-        self.trashes.retain(|p| p.is_stopped());
+        self.trashes.retain(|p| !p.is_stopped());
     }
 
     pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
