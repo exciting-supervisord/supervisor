@@ -3,6 +3,7 @@ mod supervisor;
 
 use lib::config::Config;
 use lib::CONF_FILE;
+use lib::logger::LOG;
 use net::UdsRpcServer;
 use supervisor::Supervisor;
 
@@ -55,30 +56,24 @@ fn set_command_handlers<'a, 'b>(
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     set_signal_handlers();
 
-    let conf = match Config::from(CONF_FILE) {
-        Ok(o) => o,
-        Err(e) => lib::exit_with_error(e),
-    };
-
+    LOG.info(&format!("read config file from {CONF_FILE}"));
+    let conf = Config::from(CONF_FILE).unwrap_or_else(|e| lib::exit_with_error(e));
+    
     let supervisor = Supervisor::new(CONF_FILE, conf)?;
     let supervisor = RefCell::new(supervisor);
-    let mut server = match UdsRpcServer::new(supervisor.borrow().sockfile()) {
-        Ok(o) => o,
-        Err(e) => lib::exit_with_error(e),
-    };
-
+    let mut server = UdsRpcServer::new(supervisor.borrow().sockfile())
+    .unwrap_or_else(|e| lib::exit_with_error(e));
+    LOG.info(&format!("RPC server listen at {}", supervisor.borrow().sockfile()));
+    
     set_command_handlers(&mut server, &supervisor);
 
-    let mut x = 0;
     loop {
         server.try_handle_client();
         supervisor.borrow_mut().supervise()?;
 
         thread::sleep(Duration::from_millis(500));
-        println!("loop: {x}");
-        x += 1;
         if SIGNALED.load(Ordering::Relaxed) {
-            println!("Signal detected. cleaning up...");
+            LOG.info("shutdown signal dected.. cleaning up");
             break;
         }
     }

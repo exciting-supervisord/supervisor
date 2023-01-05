@@ -6,7 +6,7 @@ use lib::config::{AutoRestart, ProcessConfig, ProgramConfig};
 use lib::logger::Logger;
 use lib::process_id::ProcessId;
 use lib::process_status::{ProcessState, ProcessStatus};
-use lib::response::Error as RpcError;
+use lib::response::{Error as RpcError, OutputMessage as RpcOutput};
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
@@ -15,8 +15,8 @@ const INIT_DESCRIPTION: &'static str = "Not started";
 
 pub trait IProcess {
     fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError>;
-    fn start(&mut self) -> Result<(), RpcError>;
-    fn stop(&mut self) -> Result<(), RpcError>;
+    fn start(&mut self) -> Result<RpcOutput, RpcError>;
+    fn stop(&mut self) -> Result<RpcOutput, RpcError>;
     fn run(&mut self) -> Result<(), RpcError>;
     fn is_stopped(&self) -> bool;
     fn get_status(&self) -> ProcessStatus;
@@ -64,22 +64,26 @@ impl IProcess for Process {
         Ok(process)
     }
 
-    fn start(&mut self) -> Result<(), RpcError> {
+    fn start(&mut self) -> Result<RpcOutput, RpcError> {
+        let name = self.id.name.to_owned();
+        
         if !self.state.startable() {
-            return Err(RpcError::ProcessAlreadyStarted(self.id.name.to_owned()));
+            return Err(RpcError::ProcessAlreadyStarted(name));
         }
         self.started_at = Some(Instant::now());
         self.goto(ProcessState::Starting, format!(""));
-        self.spawn_process()
+        self.spawn_process().map(|_| RpcOutput::new(name.as_str(), "started"))
     }
 
-    fn stop(&mut self) -> Result<(), RpcError> {
+    fn stop(&mut self) -> Result<RpcOutput, RpcError> {
+        let name = self.id.name.to_owned();
+        
         if !self.state.stopable() {
-            return Err(RpcError::ProcessNotRunning(self.id.name.to_owned()));
+            return Err(RpcError::ProcessNotRunning(name));
         }
         self.goto(ProcessState::Stopping, format!(""));
         self.stop_at = Some(Instant::now());
-        self.send_signal(self.conf.stopsignal)
+        self.send_signal(self.conf.stopsignal).map(|_| RpcOutput::new(name.as_str(), ""))
     }
 
     fn is_stopped(&self) -> bool {

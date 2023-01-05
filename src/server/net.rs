@@ -1,3 +1,4 @@
+use lib::logger::LOG;
 use lib::request::Request;
 use lib::response::{Error as RpcError, Response};
 
@@ -43,23 +44,34 @@ impl<'a> UdsRpcServer<'a> {
 
     fn get_request(&self, socket: &UnixStream) -> Result<Request, RpcError> {
         let mut deserializer = serde_json::Deserializer::from_reader(socket);
-        let req = Request::deserialize(&mut deserializer)
-            .map_err(|_| RpcError::service("request not received"))?; // FIXME 타임아웃..?
+        let req = Request::deserialize(&mut deserializer).map_err(|e| {
+            LOG.warn(&format!("failed to receive request - {e}"));
+            RpcError::service("request not received")
+        })?; // FIXME 타임아웃..?
 
         if let None = self.methods.get(&req.method) {
+            LOG.warn(&format!("unknown method found - {}", &req.method));
             return Err(RpcError::invalid_request("method"));
         }
 
         if req.method != "open" {
             if let Err(e) = self.args_validation(&req.args) {
+                LOG.warn(&format!(
+                    "invalid argument for given method - method={}, argument={:?}",
+                    &req.method, &req.args
+                ));
                 return Err(e);
             }
         }
+
+        LOG.info(&format!(
+            "new request received - method={}, argument={:?}",
+            &req.method, &req.args
+        ));
         Ok(req)
     }
 
     fn args_validation(&self, args: &Vec<String>) -> Result<(), RpcError> {
-        println!("{:?}", args); // TODO DELETE
         for a in args {
             if a == "all" {
                 continue;
@@ -81,15 +93,30 @@ impl<'a> UdsRpcServer<'a> {
         let req = match self.get_request(socket) {
             Ok(o) => o,
             Err(e) => {
-                serde_json::to_writer(socket, &Response::from_err(e));
-                socket.shutdown(std::net::Shutdown::Both);
+                LOG.warn(&format!("failed to handle client - {e}"));
+                serde_json::to_writer(socket, &Response::from_err(e)).unwrap_or_default();
+                socket
+                    .shutdown(std::net::Shutdown::Both)
+                    .unwrap_or_default();
                 return;
             }
         };
 
         let method = req.method.clone();
         let res = self.exec_method(req);
-        serde_json::to_writer(socket, &res).or_else(|_| socket.shutdown(std::net::Shutdown::Both));
+
+        if let Err(e) = serde_json::to_writer(socket, &res) {
+            LOG.warn(&format!(
+                "fail to resoponse to client - response={:?}, error={e}",
+                res
+            ));
+            socket
+                .shutdown(std::net::Shutdown::Both)
+                .unwrap_or_default();
+        }
+
+        LOG.info(&format!("request handled - response={:?}", res));
+
         if method == "shutdown" {
             std::process::exit(0);
         }
@@ -107,6 +134,12 @@ impl<'a> UdsRpcServer<'a> {
 
 impl Drop for UdsRpcServer<'_> {
     fn drop(&mut self) {
-        remove_file(self.listener.local_addr().unwrap().as_pathname().unwrap()).unwrap();
+        let socket_file = self.listener.local_addr().unwrap();
+        let socket_file = socket_file.as_pathname().unwrap();
+        LOG.info(&format!(
+            "remove socket file - {}",
+            socket_file.to_str().unwrap()
+        ));
+        remove_file(socket_file).unwrap()
     }
 }

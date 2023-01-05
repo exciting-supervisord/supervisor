@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(PartialEq, Clone, Copy, Deserialize, Serialize)]
+#[derive(PartialEq, Clone, Copy, Deserialize, Serialize, Debug)]
 pub enum ProcessState {
     Stopped,
     Starting,
@@ -42,7 +42,7 @@ impl std::fmt::Display for ProcessState {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProcessStatus {
     name: String,
     seq: u32,

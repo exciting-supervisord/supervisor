@@ -80,3 +80,5 @@ impl Logger {
         self.log(LogLevel::Crit, message);
     }
 }
+
+pub const LOG: Logger = Logger(LogLevel::Info);
