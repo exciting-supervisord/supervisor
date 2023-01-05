@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::time::Instant;
 
@@ -9,6 +10,7 @@ use lib::process_status::{ProcessState, ProcessStatus};
 use lib::response::{Error as RpcError, OutputMessage as RpcOutput};
 
 use nix::sys::signal::{self, Signal};
+use nix::sys::stat::{umask, Mode};
 use nix::unistd::Pid;
 
 const INIT_DESCRIPTION: &'static str = "Not started";
@@ -127,11 +129,20 @@ impl Process {
 
         let mut exec = Command::new(&conf.command[0]);
 
-        exec.args(&conf.command[1..])
-            .envs(&conf.environment)
-            .stdin(Stdio::null())
-            .stdout(stdout)
-            .stderr(stderr);
+        let umask_value = conf.umask.unwrap_or(0o022);
+
+        unsafe {
+            exec.args(&conf.command[1..])
+                .envs(&conf.environment)
+                .stdin(Stdio::null())
+                .stdout(stdout)
+                .stderr(stderr)
+                .uid(0)
+                .pre_exec(move || {
+                    umask(Mode::from_bits(umask_value).unwrap());
+                    Ok(())
+                });
+        }
         Ok(exec)
     }
 
