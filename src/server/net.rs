@@ -3,14 +3,15 @@ use lib::request::Request;
 use lib::response::{Error as RpcError, Response};
 
 use serde::Deserialize;
+use serde_json;
 
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::remove_file;
+use std::fs::set_permissions;
+use std::fs::Permissions;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
-
-use serde_json;
-
 pub struct UdsRpcServer<'a> {
     listener: UnixListener,
     methods: HashMap<String, Box<dyn FnMut(Vec<String>) -> Response + 'a>>,
@@ -23,6 +24,8 @@ impl<'a> UdsRpcServer<'a> {
             methods: HashMap::new(),
         };
         server.listener.set_nonblocking(true)?;
+        set_permissions(path, Permissions::from_mode(0o600))?;
+
         Ok(server)
     }
 

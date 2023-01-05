@@ -5,12 +5,12 @@ use std::mem;
 use std::vec::Vec;
 
 use lib::config::{Config, ProgramConfig};
+use lib::logger::LOG;
 use lib::process_id::ProcessId;
 use lib::process_status::ProcessStatus;
 use lib::response::{
     Action, Error as RpcError, OutputMessage as RpcOutput, Response as RpcResponse,
 };
-use lib::logger::LOG;
 
 use process::*;
 
