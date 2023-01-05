@@ -1,12 +1,33 @@
 mod command_messages;
 
-pub fn check_arguments(error_message: String, words: Vec<&str>, count: usize) -> Vec<&str> {
+fn check_argument_syntax<'a>(words: Vec<&'a str>, help: Vec<&'a str>) -> Vec<&'a str> {
+    for w in &words[1..] {
+        let w = *w;
+        if w == "all" {
+            continue;
+        }
+        match w.split_once(":") {
+            None => return help,
+            Some((_, seq)) => {
+                if let Err(_) = seq.parse::<u32>() {
+                    return help;
+                }
+            }
+        }
+    }
+    words
+}
+
+fn check_arguments(error_message: String, words: Vec<&str>, count: usize) -> Vec<&str> {
+    let help = vec!["help", words[0]];
     if words.len() != count + 1 {
         println!("{}", error_message);
-        vec!["help", words[0]]
-    } else {
-        words
+        return help;
     }
+    if words[0] == "open" {
+        return words;
+    }
+    check_argument_syntax(words, help)
 }
 
 pub fn check_command(line: &str) -> Result<Vec<&str>, ()> {
@@ -28,8 +49,7 @@ pub fn check_command(line: &str) -> Result<Vec<&str>, ()> {
             words,
             1,
         )),
-        "add" | "remove" | "avail" | "status" | "shutdown" | "update" | "log" | "quit" | "exit"
-        | "help" => Ok(words),
+        "status" | "shutdown" | "update" | "quit" | "exit" | "help" => Ok(words),
         _ => Err(()),
     }
 }
@@ -40,9 +60,6 @@ pub fn print_help(words: Vec<&str>) {
         return;
     }
     match words[1] {
-        // "add" => println!("{}", command_messages::HELP_ADD),
-        // "remove" => println!("{}", command_messages::HELP_REMOVE),
-        // "avail" => println!("{}", command_messages::HELP_AVAIL),
         "restart" => println!("{}", command_messages::HELP_RESTART),
         "start" => println!("{}", command_messages::HELP_START),
         "stop" => println!("{}", command_messages::HELP_STOP),
@@ -51,11 +68,11 @@ pub fn print_help(words: Vec<&str>) {
         "reload" => println!("{}", command_messages::HELP_RELOAD),
         "shutdown" => println!("{}", command_messages::HELP_SHUTDOWN),
         "update" => println!("{}", command_messages::HELP_UPDATE),
-        "log" => println!("{}", command_messages::HELP_QUIT), // FIXME
         "quit" => println!("{}", command_messages::HELP_QUIT),
         "exit" => println!("{}", command_messages::HELP_EXIT),
         "version" => println!("{}", command_messages::HELP_VERSION),
         "help" => println!("{}", command_messages::HELP_HELP),
+        // "log" => println!("{}", command_messages::HELP_QUIT), // FIXME
         _ => {
             let s = words[1..].join(" ");
             eprintln!("*** No help on {}", s);
@@ -64,5 +81,5 @@ pub fn print_help(words: Vec<&str>) {
 }
 
 pub fn print_version() {
-    println!("Which version must be printed?"); // FIXME
+    println!("0.0.1"); // FIXME
 }

@@ -2,6 +2,7 @@ mod net;
 mod supervisor;
 
 use lib::config::Config;
+use lib::CONF_FILE;
 use net::UdsRpcServer;
 use supervisor::Supervisor;
 
@@ -11,8 +12,6 @@ use std::thread;
 use std::time::Duration;
 
 use nix::sys::signal::{self, SigHandler, Signal};
-
-const CONF_FILE: &'static str = "./general.ini";
 
 static SIGNALED: AtomicBool = AtomicBool::new(false);
 

@@ -4,18 +4,24 @@ mod terminal;
 
 extern crate lib;
 
+use lib::config::Config;
+use lib::CONF_FILE;
 use net::Net;
 use std::error::Error;
 use std::process;
 use terminal::Terminal;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let sockfile = "/tmp/supervisor.sock";
-    let mut t = Terminal::new("supervisor>");
-    let mut net = Net::new(sockfile);
+    let conf = match Config::from(CONF_FILE) {
+        Ok(o) => o,
+        Err(e) => lib::exit_with_error(e),
+    };
+
+    let mut terminal = Terminal::new("supervisor>");
+    let mut net = Net::new(&conf.general.sockfile);
 
     loop {
-        let line = t.getline()?;
+        let line = terminal.getline()?;
         if line.is_empty() {
             continue;
         }

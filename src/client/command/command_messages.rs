@@ -8,7 +8,7 @@ pub const HELP: &'static str = "\
 default commands (type help <topic>):
 =====================================
 exit     open     reload   restart  start    shutdown
-status   update   log      quit     stop     version";
+status   update   quit     stop     version";
 
 pub const HELP_HELP: &'static str = "\
 help \t\tPrint a list of available actions\nhelp <action>\tPrint help for <action>";
@@ -25,31 +25,31 @@ pub const HELP_UPDATE: &'static str = "\
 update\t\t\tReload config and add/remove as necessary, and will restart affected programs";
 
 // pub const HELP_ADD: &'static str = "\
-// add <name> [...]	Activates any updates in config for process/group";
+// add <name:seq> [...]	Activates any updates in config for process/group";
 
 // pub const HELP_REMOVE: &'static str = "\
-// remove <name> [...]	Removes process/group from active config";
+// remove <name:seq> [...]	Removes process/group from active config";
 
 pub const HELP_STATUS: &'static str = "\
-status <name>		Get status for a single process
-status <name> <name>	Get status for multiple named processes
-status			Get all process status info";
+status <name:seq>				Get status for a single process
+status <name:seq> <name:seq>	Get status for multiple named processes
+status							Get all process status info";
 
 pub const HELP_STOP: &'static str = "\
-stop <name>		Stop a process
-stop <name> <name>	Stop multiple processes or groups
-stop all		Stop all processes";
+stop <name:seq>			Stop a process
+stop <name:seq> <name:seq>	Stop multiple processes or groups
+stop all			Stop all processes";
 
 pub const HELP_RESTART: &'static str = "\
-restart <name>		Restart a process
-restart <name> <name>	Restart multiple processes or groups
-restart all		Restart all processes
+restart <name:seq>		Restart a process
+restart <name:seq> <name:seq>	Restart multiple processes or groups
+restart all			Restart all processes
 Note: restart does not reread config files. For that, see reread and update.";
 
 pub const HELP_START: &'static str = "\
-start <name>		Start a process
-start <name> <name>	Start multiple processes or groups
-start all		Start all processes";
+start <name:seq>		Start a process
+start <name:seq> <name:seq>	Start multiple processes or groups
+start all			Start all processes";
 
 pub const HELP_OPEN: &'static str = "\
 open <path> 	Connect to a remote supervisord process.
