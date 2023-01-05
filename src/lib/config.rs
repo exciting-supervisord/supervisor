@@ -49,7 +49,7 @@ pub struct ProgramConfig {
     pub stdout_logfile: String,
     pub stderr_logfile: String,
     pub directory: String,
-    pub umask: Option<i32>,
+    pub umask: Option<u32>,
     pub user: Option<String>,
     pub environment: HashMap<String, String>,
 
@@ -124,9 +124,9 @@ impl ProgramConfig {
         }
     }
 
-    fn parse_umask(k: &str, v: &str) -> Result<i32, ConfigValueError> {
+    fn parse_umask(k: &str, v: &str) -> Result<u32, ConfigValueError> {
         let value_error = ConfigValueError::new(k, v);
-        Ok(i32::from_str_radix(v, 8).map_err(|_| value_error)?)
+        Ok(u32::from_str_radix(v, 8).map_err(|_| value_error)?)
     }
 
     fn parse_autorestart(k: &str, v: &str) -> Result<AutoRestart, ConfigValueError> {
@@ -159,7 +159,7 @@ impl ProgramConfig {
                 "stdout_logfile" => config.stdout_logfile = v.to_owned(),
                 "stderr_logfile" => config.stderr_logfile = v.to_owned(),
                 "directory" => config.directory = v.to_owned(),
-                "umask" => config.umask = Some(ProgramConfig::parse_umask(k, v)?),
+                "umask" => config.umask = Some(ProgramConfig::parse_umask(k, v)? % 0o777),
                 "user" => config.user = Some(v.to_owned()),
                 "environment" => config.environment = ProgramConfig::parse_environment(k, v)?,
                 _ => return Err(Box::new(ConfigKeyError::new(k))),
@@ -371,7 +371,7 @@ mod tests {
     fn test_program_invalid_value_umask() {
         let c = Config::from("./src/lib/config/test/program_invalid_value_umask.ini");
         assert_eq!(
-            "configuration: invalid value: umask: 07777",
+            "configuration: invalid value: umask: asdf",
             c.unwrap_err().to_string()
         );
     }
