@@ -5,11 +5,12 @@ use std::time::Instant;
 
 use lib::config::{AutoRestart, ProcessConfig, ProgramConfig};
 use lib::logger::Logger;
+use lib::logger::LOG;
 use lib::process_id::ProcessId;
 use lib::process_status::{ProcessState, ProcessStatus};
 use lib::response::{Error as RpcError, OutputMessage as RpcOutput};
 
-use nix::libc::getpwnam;
+use nix::libc::{getpwnam, getuid};
 use nix::sys::signal::{self, Signal};
 use nix::sys::stat::{umask, Mode};
 use nix::unistd::Pid;
@@ -150,14 +151,16 @@ impl Process {
 
     fn get_uid(user_name: &Option<String>) -> u32 {
         if let None = user_name {
-            return 0;
+            return unsafe { getuid() };
         }
         let user_name = user_name.as_ref().unwrap();
         let name_ptr = user_name.as_ptr() as *const i8;
         unsafe {
             let passwd = getpwnam(name_ptr);
             if passwd.is_null() {
-                0
+                let msg = format!("there is no user named {user_name}. the process uid will be set to supervisord's.");
+                LOG.warn(msg.as_str());
+                getuid()
             } else {
                 (*passwd).pw_uid
             }
