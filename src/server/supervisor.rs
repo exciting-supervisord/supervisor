@@ -10,6 +10,7 @@ use lib::process_status::ProcessStatus;
 use lib::response::{
     Action, Error as RpcError, OutputMessage as RpcOutput, Response as RpcResponse,
 };
+use lib::logger::LOG;
 
 use process::*;
 
@@ -52,35 +53,35 @@ impl Supervisor {
 
     fn garbage_collect(&mut self) {
         self.trashes.iter_mut().for_each(|p| p.run().expect("")); // FIXME
-        let old_trashes = mem::take(&mut self.trashes);
-        self.trashes = old_trashes
-            .into_iter()
-            .filter(|p| !p.is_stopped())
-            .collect();
+        self.trashes.retain(|p| p.is_stopped());
     }
 
     pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
+        LOG.info(&format!("handle request - start, names={:?}", names));
         let inputs = self.convert_to_process_ids(&names);
 
         let act = inputs
             .iter()
-            .map(|id| self.try_order_once(id, "start"))
+            // .map(|id| self.try_process_operation(id, |proc| proc.start()))
+            .map(|id| self.try_process_operation(id, Process::start))
             .collect::<Action>();
         RpcResponse::Action(act)
     }
 
     pub fn stop(&mut self, names: Vec<String>) -> RpcResponse {
+        LOG.info(&format!("handle request - stop, names={:?}", names));
         let inputs = self.convert_to_process_ids(&names);
 
         let act = inputs
             .iter()
-            .map(|id| self.try_order_once(id, "stop"))
+            .map(|id| self.try_process_operation(id, Process::stop))
             .collect::<Action>();
         RpcResponse::Action(act)
     }
 
     // Reload() -> ()
     pub fn reload(&mut self, _: Vec<String>) -> RpcResponse {
+        LOG.info("handle request - reload");
         self.cleanup_processes();
 
         let config = mem::take(&mut self.config); // TODO 생각해보기: 이게 맞나..?
@@ -96,6 +97,7 @@ impl Supervisor {
 
     //     Shutdown() -> ()
     pub fn shutdown(&mut self, _: Vec<String>) -> RpcResponse {
+        LOG.info("handle request - shutdown");
         self.cleanup_processes();
         RpcResponse::from_output(RpcOutput::new("taskmaster", "shutdown"))
     }
@@ -145,6 +147,7 @@ impl Supervisor {
     }
 
     pub fn update(&mut self, _: Vec<String>) -> RpcResponse {
+        LOG.info("handle request - update");
         let next_conf = match Config::from(&self.file_path) {
             Ok(o) => o,
             Err(e) => return RpcResponse::from_err(RpcError::file_format(e.to_string().as_str())),
@@ -168,24 +171,20 @@ impl Supervisor {
             .collect::<Vec<ProcessId>>()
     }
 
-    fn try_order_once(&mut self, id: &ProcessId, order: &str) -> Result<RpcOutput, RpcError> {
-        let runnings = self.config.process_list();
-
-        if runnings.contains(id) == false {
-            Err(RpcError::ProcessNotFound(id.name.to_owned()))
-        } else {
-            match order {
-                "start" => match self.processes.get_mut(id).unwrap().start() {
-                    Err(e) => Err(e), // FIXME 추상화....!
-                    Ok(_) => Ok(RpcOutput::new(id.name.as_str(), "started")),
-                },
-                "stop" => match self.processes.get_mut(id).unwrap().stop() {
-                    Err(e) => Err(e),
-                    Ok(_) => Ok(RpcOutput::new(id.name.as_str(), "stopped")),
-                },
-                _ => panic!("logic error"),
-            }
+    fn try_process_operation(
+        &mut self,
+        id: &ProcessId,
+        operation: fn(id: &mut Process) -> Result<RpcOutput, RpcError>,
+    ) -> Result<RpcOutput, RpcError> {
+        if !self.config.process_list().contains(id) {
+            return Err(RpcError::ProcessNotFound(id.name.to_owned()));
         }
+
+        let process = self
+            .processes
+            .get_mut(id)
+            .expect("running process must in processes");
+        operation(process)
     }
 
     fn cleanup_processes(&mut self) {
@@ -204,6 +203,7 @@ impl Supervisor {
     // Status(Vec<name>) -> Result( Vec<ProcessStatus>, Error)
     // where Error: ServiceError + ProcessNotFoundError
     pub fn status(&self, words: Vec<String>) -> RpcResponse {
+        LOG.info("handle request - status");
         if words.contains(&String::from("all")) || words.len() == 0 {
             let v: Vec<ProcessStatus> = self
                 .processes
