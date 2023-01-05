@@ -69,24 +69,26 @@ impl IProcess for Process {
 
     fn start(&mut self) -> Result<RpcOutput, RpcError> {
         let name = self.id.name.to_owned();
-        
+
         if !self.state.startable() {
             return Err(RpcError::ProcessAlreadyStarted(name));
         }
         self.started_at = Some(Instant::now());
         self.goto(ProcessState::Starting, format!(""));
-        self.spawn_process().map(|_| RpcOutput::new(name.as_str(), "started"))
+        self.spawn_process()
+            .map(|_| RpcOutput::new(name.as_str(), "started"))
     }
 
     fn stop(&mut self) -> Result<RpcOutput, RpcError> {
         let name = self.id.name.to_owned();
-        
+
         if !self.state.stopable() {
             return Err(RpcError::ProcessNotRunning(name));
         }
         self.goto(ProcessState::Stopping, format!(""));
         self.stop_at = Some(Instant::now());
-        self.send_signal(self.conf.stopsignal).map(|_| RpcOutput::new(name.as_str(), ""))
+        self.send_signal(self.conf.stopsignal)
+            .map(|_| RpcOutput::new(name.as_str(), ""))
     }
 
     fn is_stopped(&self) -> bool {
@@ -154,7 +156,11 @@ impl Process {
         let name_ptr = user_name.as_ptr() as *const i8;
         unsafe {
             let passwd = getpwnam(name_ptr);
-            (*passwd).pw_uid
+            if passwd.is_null() {
+                0
+            } else {
+                (*passwd).pw_uid
+            }
         }
     }
 
