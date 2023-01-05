@@ -110,7 +110,7 @@ impl<'a> UdsRpcServer<'a> {
 
         if let Err(e) = serde_json::to_writer(socket, &res) {
             LOG.warn(&format!(
-                "fail to resoponse to client - response={:?}, error={e}",
+                "fail to resoponse to client - response={}, error={e}",
                 res
             ));
             socket
@@ -118,7 +118,7 @@ impl<'a> UdsRpcServer<'a> {
                 .unwrap_or_default();
         }
 
-        LOG.info(&format!("request handled - response={:?}", res));
+        LOG.info(&format!("request handled - response=\n{}", res));
 
         if method == "shutdown" {
             std::process::exit(0);

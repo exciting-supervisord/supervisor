@@ -69,7 +69,7 @@ impl IProcess for Process {
     }
 
     fn start(&mut self) -> Result<RpcOutput, RpcError> {
-        let name = self.id.name.to_owned();
+        let name = self.id.to_string();
 
         if !self.state.startable() {
             return Err(RpcError::ProcessAlreadyStarted(name));
@@ -81,7 +81,7 @@ impl IProcess for Process {
     }
 
     fn stop(&mut self) -> Result<RpcOutput, RpcError> {
-        let name = self.id.name.to_owned();
+        let name = self.id.to_string();
 
         if !self.state.stopable() {
             return Err(RpcError::ProcessNotRunning(name));

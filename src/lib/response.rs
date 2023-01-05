@@ -22,6 +22,20 @@ impl Response {
     }
 }
 
+impl std::fmt::Display for Response {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Response::Action(ref act) => write!(f, "{act}"),
+            Response::Status(ref v) => {
+                v.iter().for_each(|status| {
+                    write!(f, "{}\n", status).unwrap_or_default();
+                });
+                Ok(())
+            }
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Action {
     pub list: Vec<Result<OutputMessage, Error>>,
@@ -35,18 +49,6 @@ impl Action {
     pub fn add(&mut self, res: Result<OutputMessage, Error>) {
         self.list.push(res);
     }
-
-    // pub fn from_err(err: Error) -> Self {
-    //     let mut res = Action::new();
-    //     res.add(Err(err));
-    //     res
-    // }
-
-    // pub fn from_output(out: OutputMessage) -> Self {
-    //     let mut res = Action::new();
-    //     res.add(Ok(out));
-    //     res
-    // }
 }
 
 impl FromIterator<Result<OutputMessage, Error>> for Action {
@@ -57,6 +59,20 @@ impl FromIterator<Result<OutputMessage, Error>> for Action {
             res.list.push(i);
         }
         res
+    }
+}
+
+impl std::fmt::Display for Action {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.list.iter().for_each(|one| match one {
+            Ok(o) => {
+                write!(f, "{}\n", o).unwrap_or_default();
+            }
+            Err(e) => {
+                write!(f, "{}\n", e).unwrap_or_default();
+            }
+        });
+        Ok(())
     }
 }
 
