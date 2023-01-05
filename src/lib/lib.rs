@@ -4,8 +4,10 @@ pub mod process_id;
 pub mod process_status;
 pub mod request;
 pub mod response;
+pub mod daemon;
 
 pub const CONF_FILE: &'static str = "./general.ini";
+pub const LOG_FILE: &'static str = "/tmp/taskmaster.log";
 
 pub fn exit_with_error(err: Box<dyn std::error::Error>) -> ! {
     logger::LOG.crit(&format!("{err}"));

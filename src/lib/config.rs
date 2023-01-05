@@ -198,14 +198,12 @@ impl std::fmt::Display for ProgramConfig {
 #[derive(Debug, PartialEq)]
 pub struct GeneralConfig {
     pub sockfile: String,
-    pub pidfile: String,
 }
 
 impl GeneralConfig {
     pub fn new() -> Self {
         GeneralConfig {
             sockfile: "/tmp/supervisord.sock".to_owned(),
-            pidfile: "/tmp/supervisord.pid".to_owned(),
         }
     }
 
@@ -214,7 +212,6 @@ impl GeneralConfig {
         for (k, v) in prop.iter() {
             match k {
                 "sockfile" => config.sockfile = v.to_owned(),
-                "pidfile" => config.pidfile = v.to_owned(),
                 _ => return Err(ConfigKeyError::new(k)),
             }
         }
@@ -280,7 +277,6 @@ mod tests {
         let expected: Config = Config {
             general: GeneralConfig {
                 sockfile: "/tmp/supervisord.sock".to_owned(),
-                pidfile: "/tmp/supervisord.pid".to_owned(),
             },
             programs: Default::default(),
         };
@@ -293,7 +289,6 @@ mod tests {
         let expected: Config = Config {
             general: GeneralConfig {
                 sockfile: "/tmp/test.general.sock".to_owned(),
-                pidfile: "/tmp/test.general.pid".to_owned(),
             },
             programs: Default::default(),
         };
@@ -302,37 +297,10 @@ mod tests {
     }
 
     #[test]
-    fn test_general_no_pidfile() {
-        let expected: Config = Config {
-            general: GeneralConfig {
-                sockfile: "/tmp/test.general.sock".to_owned(),
-                pidfile: "/tmp/supervisord.pid".to_owned(),
-            },
-            programs: Default::default(),
-        };
-        let c = Config::from("./src/lib/config/test/general_no_pidfile.ini");
-        assert_eq!(expected, c.unwrap());
-    }
-
-    #[test]
-    fn test_general_no_sockfile() {
-        let expected: Config = Config {
-            general: GeneralConfig {
-                sockfile: "/tmp/supervisord.sock".to_owned(),
-                pidfile: "/tmp/test.general.pid".to_owned(),
-            },
-            programs: Default::default(),
-        };
-        let c = Config::from("./src/lib/config/test/general_no_sockfile.ini");
-        assert_eq!(expected, c.unwrap());
-    }
-
-    #[test]
     fn test_general_no_option() {
         let expected: Config = Config {
             general: GeneralConfig {
                 sockfile: "/tmp/supervisord.sock".to_owned(),
-                pidfile: "/tmp/supervisord.pid".to_owned(),
             },
             programs: Default::default(),
         };
