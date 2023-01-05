@@ -1,6 +1,7 @@
 mod process;
 
 use std::collections::HashMap;
+use std::mem;
 use std::vec::Vec;
 
 use lib::config::{Config, ProgramConfig};
@@ -25,9 +26,7 @@ impl Supervisor {
     }
 
     pub fn new(file_path: &str, config: Config) -> Result<Self, Box<dyn std::error::Error>> {
-        let file_path = file_path.to_owned();
         let mut processes = HashMap::new();
-        let trashes = Vec::new();
 
         for (_, v) in config.programs.iter() {
             for index in 0..v.numprocs {
@@ -35,26 +34,12 @@ impl Supervisor {
                 processes.insert(process.get_id(), process);
             }
         }
-
         Ok(Supervisor {
-            file_path,
+            file_path: file_path.to_owned(),
             config,
             processes,
-            trashes,
+            trashes: Vec::new(),
         })
-    }
-
-    fn garbage_collect(&mut self) {
-        let mut indexs: Vec<usize> = Default::default();
-        for (i, r) in self.trashes.iter_mut().enumerate() {
-            r.run().expect("");
-            if r.is_stopped() {
-                indexs.push(i);
-            }
-        }
-        for i in indexs {
-            self.trashes.remove(i);
-        }
     }
 
     pub fn supervise(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -63,6 +48,55 @@ impl Supervisor {
         }
         self.garbage_collect();
         Ok(())
+    }
+
+    fn garbage_collect(&mut self) {
+        self.trashes.iter_mut().for_each(|p| p.run().expect("")); // FIXME
+        let old_trashes = mem::take(&mut self.trashes);
+        self.trashes = old_trashes
+            .into_iter()
+            .filter(|p| !p.is_stopped())
+            .collect();
+    }
+
+    pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
+        let inputs = self.convert_to_process_ids(&names);
+
+        let act = inputs
+            .iter()
+            .map(|id| self.try_order_once(id, "start"))
+            .collect::<Action>();
+        RpcResponse::Action(act)
+    }
+
+    pub fn stop(&mut self, names: Vec<String>) -> RpcResponse {
+        let inputs = self.convert_to_process_ids(&names);
+
+        let act = inputs
+            .iter()
+            .map(|id| self.try_order_once(id, "stop"))
+            .collect::<Action>();
+        RpcResponse::Action(act)
+    }
+
+    // Reload() -> ()
+    pub fn reload(&mut self) {
+        self.cleanup_processes();
+
+        let config = mem::take(&mut self.config); // TODO 생각해보기: 이게 맞나..?
+        let turn_on = config.process_list();
+
+        for process_id in turn_on {
+            let program_conf = config.programs.get(process_id.name.as_str()).unwrap();
+            self.add_process(program_conf, process_id.seq);
+        }
+        self.config = config
+    }
+
+    //     Shutdown() -> ()
+    pub fn shutdown(&mut self) -> RpcResponse {
+        self.cleanup_processes();
+        RpcResponse::from_output(RpcOutput::new("taskmaster", "shutdown"))
     }
 
     fn remove_process(&mut self, process_id: &ProcessId) -> Result<(), RpcError> {
@@ -75,14 +109,12 @@ impl Supervisor {
     fn add_process(
         &mut self,
         conf: &ProgramConfig,
-        index: u32,
+        seq: u32,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let process = Process::new(conf, index)?;
+        let process = Process::new(conf, seq)?;
         self.processes.insert(process.get_id(), process);
         Ok(())
     }
-
-    // pub fn status(&self, names: Vec<String>) -> Result<Vec<ProcessStatus>, rpc_error::Error> {}
 
     fn affect(&mut self, next_conf: &Config) {
         let next_list = next_conf.process_list();
@@ -155,35 +187,18 @@ impl Supervisor {
         }
     }
 
-    // Start(name) -> Vec<Respose = Result( OutputMessage, Error)>
-    // where Error: ProcessNotFoundError + ProcessAlreadyStartedError
-    pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
-        let inputs = self.convert_to_process_ids(&names);
+    fn cleanup_processes(&mut self) {
+        let keys: Vec<ProcessId> = self.processes.iter().map(|(k, _)| k.to_owned()).collect();
 
-        let act = inputs
-            .iter()
-            .map(|id| self.try_order_once(id, "start"))
-            .collect::<Action>();
-        RpcResponse::Action(act)
+        for key in keys {
+            self.remove_process(&key);
+        }
+
+        // TODO 고민: 선 응답 후 처리?
+        while self.trashes.len() != 0 {
+            self.garbage_collect();
+        }
     }
-
-    // Stop(name) -> Result( OutputMessage, Error)
-    // where Error: ProcessNotFoundError + ProcessNotRunningError
-    pub fn stop(&mut self, names: Vec<String>) -> RpcResponse {
-        let inputs = self.convert_to_process_ids(&names);
-
-        let act = inputs
-            .iter()
-            .map(|id| self.try_order_once(id, "stop"))
-            .collect::<Action>();
-        RpcResponse::Action(act)
-    }
-
-    // Reload() -> ()
-    // pub fn reload() {}
-
-    //     Shutdown() -> ()
-    // pub fn shutdown() {}
 
     // Status(Vec<name>) -> Result( Vec<ProcessStatus>, Error)
     // where Error: ServiceError + ProcessNotFoundError

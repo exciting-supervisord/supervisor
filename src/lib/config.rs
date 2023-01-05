@@ -67,7 +67,7 @@ impl ProgramConfig {
         let exitcodes = vec![0];
         ProgramConfig {
             name: name.to_owned(),
-            command: Default::default(),
+            command: Vec::new(),
             numprocs: 1,
             autostart: false,
             autorestart: AutoRestart::Unexpected,
@@ -81,7 +81,7 @@ impl ProgramConfig {
             directory: "/tmp".to_owned(),
             umask: None,
             user: None,
-            environment: Default::default(),
+            environment: HashMap::new(),
         }
     }
 
@@ -226,6 +226,15 @@ impl GeneralConfig {
 pub struct Config {
     pub general: GeneralConfig,
     pub programs: HashMap<String, ProgramConfig>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            general: GeneralConfig::new(),
+            programs: Default::default(),
+        }
+    }
 }
 
 impl Config {
