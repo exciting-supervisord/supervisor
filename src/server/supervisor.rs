@@ -53,7 +53,9 @@ impl Supervisor {
     }
 
     fn garbage_collect(&mut self) {
-        self.trashes.iter_mut().for_each(|p| p.run().expect("")); // FIXME
+        self.trashes
+            .iter_mut()
+            .for_each(|p| p.run().unwrap_or_default());
         self.trashes.retain(|p| !p.is_stopped());
     }
 
@@ -231,7 +233,6 @@ impl Supervisor {
             self.remove_process(&key).unwrap_or_default();
         }
 
-        // TODO 고민: 선 응답 후 처리?
         while self.trashes.len() != 0 {
             self.garbage_collect();
         }
