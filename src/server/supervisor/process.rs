@@ -177,7 +177,7 @@ impl Process {
         let proc = self.command.spawn();
 
         if let Err(e) = proc {
-            self.goto(ProcessState::Stopped, format!("spawn failed - error={}", e));
+            self.goto(ProcessState::Fatal, format!("spawn failed - error={}", e));
             return Err(RpcError::spawn(e.to_string().as_str()));
         }
 
