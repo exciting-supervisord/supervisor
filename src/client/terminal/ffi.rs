@@ -1,19 +1,13 @@
-use super::termios_ctor::*;
-
 use nix::{
     errno,
-    sys::termios::{
-        tcgetattr, tcsetattr, LocalFlags, SetArg::*, SpecialCharacterIndices::*, Termios,
-    },
+    sys::termios::{tcgetattr, tcsetattr, LocalFlags, SetArg::*, SpecialCharacterIndices::*},
     unistd::read,
 };
 
 pub fn getch() -> Result<u8, errno::Errno> {
-    let t = termios::new();
     let oterm = tcgetattr(0)?;
-    let mut term = Termios::from(t);
+    let mut term = oterm.clone();
 
-    term = oterm.clone();
     term.local_flags &= !(LocalFlags::ICANON | LocalFlags::ECHO);
     term.control_chars[VMIN as usize] = 1;
     term.control_chars[VTIME as usize] = 0;

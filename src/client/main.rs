@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Err(e) => lib::exit_with_error(e),
     };
 
-    let mut terminal = Terminal::new("supervisor>");
+    let mut terminal = Terminal::new("taskmaster>");
     let mut net = Net::new(&conf.general.sockfile);
 
     loop {
