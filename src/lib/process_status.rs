@@ -27,20 +27,35 @@ impl ProcessState {
     }
 }
 
-impl std::fmt::Display for ProcessState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl ToString for ProcessState {
+    fn to_string(&self) -> String {
         match self {
-            Self::Stopped => write!(f, "Stopped"),
-            Self::Starting => write!(f, "Starting"),
-            Self::Running => write!(f, "Running"),
-            Self::Backoff => write!(f, "Backoff"),
-            Self::Stopping => write!(f, "Stopping"),
-            Self::Exited => write!(f, "Exited"),
-            Self::Fatal => write!(f, "Fatal"),
-            Self::Unknown => write!(f, "Unknown"),
+            Self::Stopped => format!("Stopped"),
+            Self::Starting => format!("Starting"),
+            Self::Running => format!("Running"),
+            Self::Backoff => format!("Backoff"),
+            Self::Stopping => format!("Stopping"),
+            Self::Exited => format!("Exited"),
+            Self::Fatal => format!("Fatal"),
+            Self::Unknown => format!("Unknown"),
         }
     }
 }
+
+// impl std::fmt::Display for ProcessState {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             Self::Stopped => write!(f, "Stopped"),
+//             Self::Starting => write!(f, "Starting"),
+//             Self::Running => write!(f, "Running"),
+//             Self::Backoff => write!(f, "Backoff"),
+//             Self::Stopping => write!(f, "Stopping"),
+//             Self::Exited => write!(f, "Exited"),
+//             Self::Fatal => write!(f, "Fatal"),
+//             Self::Unknown => write!(f, "Unknown"),
+//         }
+//     }
+// }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ProcessStatus {
@@ -54,8 +69,10 @@ impl std::fmt::Display for ProcessStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "{}:{}\t\t\t{}\t\t{}",
-            self.name, self.seq, self.state, self.description
+            "{:<30}{:<20}{}",
+            format!("{}:{}", self.name, self.seq),
+            self.state.to_string(),
+            self.description
         )
     }
 }
