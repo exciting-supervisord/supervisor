@@ -11,13 +11,13 @@ pub enum Response {
 impl Response {
     pub fn from_output(out: OutputMessage) -> Self {
         let mut res = Action::new();
-        res.add(Ok(out));
+        res.add_element(Ok(out));
         Response::Action(res)
     }
 
     pub fn from_err(err: Error) -> Self {
         let mut res = Action::new();
-        res.add(Err(err));
+        res.add_element(Err(err));
         Response::Action(res)
     }
 }
@@ -46,8 +46,16 @@ impl Action {
         Action { list: Vec::new() }
     }
 
-    pub fn add(&mut self, res: Result<OutputMessage, Error>) {
+    pub fn add_element(&mut self, res: Result<OutputMessage, Error>) {
         self.list.push(res);
+    }
+}
+
+impl std::ops::Add for Action {
+    type Output = Action;
+    fn add(mut self, other: Action) -> Action {
+        other.list.into_iter().for_each(|x| self.add_element(x));
+        self
     }
 }
 

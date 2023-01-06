@@ -90,7 +90,7 @@ impl IProcess for Process {
         self.goto(ProcessState::Stopping, format!(""));
         self.stop_at = Some(Instant::now());
         self.send_signal(self.conf.stopsignal)
-            .map(|_| RpcOutput::new(name.as_str(), ""))
+            .map(|_| RpcOutput::new(name.as_str(), "stopping"))
     }
 
     fn is_stopped(&self) -> bool {

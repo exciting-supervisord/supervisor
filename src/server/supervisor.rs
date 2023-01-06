@@ -1,7 +1,6 @@
 mod process;
 
 use std::collections::HashMap;
-use std::mem;
 use std::sync::atomic::Ordering;
 use std::vec::Vec;
 
@@ -64,7 +63,6 @@ impl Supervisor {
 
         let act = inputs
             .iter()
-            // .map(|id| self.try_process_operation(id, |proc| proc.start()))
             .map(|id| self.try_process_operation(id, Process::start))
             .collect::<Action>();
         RpcResponse::Action(act)
@@ -81,27 +79,60 @@ impl Supervisor {
         RpcResponse::Action(act)
     }
 
+    pub fn restart(&mut self, names: Vec<String>) -> RpcResponse {
+        LOG.info(&format!("handle request - stop, names={:?}", names));
+        let inputs = self.convert_to_process_ids(&names);
+
+        let act = inputs
+            .iter()
+            .map(|process_id| {
+                if !self.config.process_list().contains(process_id) {
+                    return Err(RpcError::ProcessNotFound(process_id.to_string()));
+                }
+                let mut process = self.processes.remove(process_id).unwrap();
+                let ret = process.stop();
+                self.trashes.push(process);
+                ret
+            })
+            .collect::<Action>();
+
+        let act2 = inputs
+            .iter()
+            .map(|process_id| {
+                if !self.config.process_list().contains(process_id) {
+                    Err(RpcError::ProcessNotFound(process_id.to_string()))
+                } else {
+                    let conf = self.config.programs.get(&process_id.name).unwrap();
+                    match Process::new(conf, process_id.seq) {
+                        Err(e) => Err(e),
+                        Ok(mut p) => {
+                            let ret = p.start();
+                            self.processes.insert(p.get_id(), p);
+                            ret
+                        }
+                    }
+                }
+            })
+            .collect::<Action>();
+
+        RpcResponse::Action(act + act2)
+    }
+
     // Reload() -> ()
     pub fn reload(&mut self, _: Vec<String>) -> RpcResponse {
         LOG.info("handle request - reload");
         self.cleanup_processes();
 
-        let config = mem::take(&mut self.config); // TODO 생각해보기: 이게 맞나..?
-        let turn_on = config.process_list();
-
+        let turn_on = self.config.process_list();
         for process_id in turn_on {
-            let program_conf = config.programs.get(process_id.name.as_str()).unwrap();
-            self.add_process(program_conf, process_id.seq)
-                .unwrap_or_default();
+            self.revive_process(&process_id).unwrap_or_default();
         }
-        self.config = config;
         RpcResponse::from_output(RpcOutput::new("taskmasterd", "reload"))
     }
 
     //     Shutdown() -> ()
     pub fn shutdown(&mut self, _: Vec<String>) -> RpcResponse {
         LOG.info("handle request - shutdown");
-        // self.cleanup_processes();
         control::SHUTDOWN.store(true, Ordering::Relaxed);
         RpcResponse::from_output(RpcOutput::new("taskmasterd", "shutdown"))
     }
@@ -113,12 +144,16 @@ impl Supervisor {
         Ok(())
     }
 
-    fn add_process(
-        &mut self,
-        conf: &ProgramConfig,
-        seq: u32,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn add_process(&mut self, conf: &ProgramConfig, seq: u32) -> Result<(), RpcError> {
         let process = Process::new(conf, seq)?;
+        self.processes.insert(process.get_id(), process);
+        Ok(())
+    }
+
+    fn revive_process(&mut self, process_id: &ProcessId) -> Result<(), RpcError> {
+        let conf = self.config.programs.get(&process_id.name).unwrap();
+
+        let process = Process::new(conf, process_id.seq)?;
         self.processes.insert(process.get_id(), process);
         Ok(())
     }
@@ -167,11 +202,8 @@ impl Supervisor {
         names
             .iter()
             .map(|x| {
-                let (name, seq) = x.split_once(":").expect("return Invalid argument"); // ? 클라이언트에서 처리하는게 맞을 지도?
-                ProcessId {
-                    name: name.to_owned(),
-                    seq: seq.parse::<u32>().expect("parse fail"),
-                }
+                let (name, seq) = x.split_once(":").expect("return Invalid argument");
+                ProcessId::new(name.to_owned(), seq.parse::<u32>().expect("parse fail"))
             })
             .collect::<Vec<ProcessId>>()
     }

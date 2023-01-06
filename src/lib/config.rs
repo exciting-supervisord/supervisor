@@ -45,7 +45,7 @@ impl ProcessConfig {
 pub struct ProgramConfig {
     pub name: String,
     pub command: Vec<String>,
-    pub numprocs: u32, // ?
+    pub numprocs: u32,
     pub stdout_logfile: String,
     pub stderr_logfile: String,
     pub directory: String,
