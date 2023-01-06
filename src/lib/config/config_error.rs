@@ -56,12 +56,24 @@ impl std::fmt::Display for ConfigKeyError {
 impl Error for ConfigKeyError {}
 
 #[derive(Debug)]
-pub struct ConfigFileError;
+pub enum ConfigFileError {
+    Parsing(ConfigParsingError),
+    Nofile(ConfigNoFileError),
+}
 
 impl std::fmt::Display for ConfigFileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "configuration: invalid file format")
+        match *self {
+            ConfigFileError::Parsing(_) => write!(f, "configuration: invalid file format"),
+            ConfigFileError::Nofile(_) => write!(f, "configuration: no such file"),
+        }
     }
 }
 
 impl Error for ConfigFileError {}
+
+#[derive(Debug)]
+pub struct ConfigParsingError;
+
+#[derive(Debug)]
+pub struct ConfigNoFileError;

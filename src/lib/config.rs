@@ -236,7 +236,7 @@ impl Default for Config {
 
 impl Config {
     pub fn from(file_path: &str) -> Result<Self, Box<dyn Error>> {
-        let ini = parser_ini::load_ini(file_path).map_err(|_| ConfigFileError)?;
+        let ini = parser_ini::load_ini(file_path)?;
         let mut general = GeneralConfig::new();
         let mut programs = HashMap::new();
         for (sec, prop) in ini.iter() {

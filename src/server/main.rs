@@ -40,6 +40,8 @@ fn set_command_handlers<'a, 'b>(
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     let conf_file = if args.len() > 1 { &args[1] } else { CONF_FILE };
+    println!("\nConfiguration file: {conf_file}\n");
+    println!("If you want to set the other configuration file, put it on the first argument.\n");
     control::set_signal_handlers();
     daemonize(LOG_FILE).unwrap_or_else(|e| lib::exit_with_error(Box::new(e)));
 
