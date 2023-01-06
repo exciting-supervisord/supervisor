@@ -2,7 +2,7 @@ use libc;
 use nix::{
     errno::Errno,
     sys::stat::Mode,
-    unistd::{chdir, close, dup2, fork, setsid, ForkResult},
+    unistd::{close, dup2, fork, setsid, ForkResult},
 };
 
 use nix::fcntl::{open, OFlag};
@@ -29,8 +29,5 @@ pub fn daemonize(logfile: &str) -> Result<(), Errno> {
     }
 
     setsid()?;
-    replace_std_fd(logfile)?;
-    // chdir("/tmp")
-
-    Ok(())
+    replace_std_fd(logfile)
 }

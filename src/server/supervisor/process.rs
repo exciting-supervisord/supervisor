@@ -1,3 +1,4 @@
+use std::env::set_current_dir;
 use std::fs::File;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
@@ -54,7 +55,7 @@ impl IProcess for Process {
             command,
             proc: None,
             state: ProcessState::Stopped,
-            current_try: 0,
+            current_try: 1,
             started_at: None,
             stop_at: None,
             exit_status: None,
@@ -122,29 +123,34 @@ impl IProcess for Process {
 
 impl Process {
     fn new_command(conf: &ProgramConfig) -> Result<Command, RpcError> {
-        println!("cmd = {}", conf.command[0]);
-        println!("cmd = {}", &conf.stdout_logfile);
-        println!("cmd = {}", &conf.stderr_logfile);
+        let stdout_path = conf.stdout_logfile.to_owned();
+        let stderr_path = conf.stderr_logfile.to_owned();
 
-        let stdout = File::create(&conf.stdout_logfile)
-            .map_err(|e| RpcError::file_open(e.to_string().as_str()))?;
-        let stderr = File::create(&conf.stderr_logfile)
-            .map_err(|e| RpcError::file_open(e.to_string().as_str()))?;
+        let stdout =
+            File::create(&stdout_path).map_err(|e| RpcError::file_open(e.to_string().as_str()))?;
+        let stderr =
+            File::create(&stderr_path).map_err(|e| RpcError::file_open(e.to_string().as_str()))?;
+
         let v_uid = Process::get_uid(&conf.user);
         let v_umask = conf.umask.unwrap_or(0o022);
+        let directory = conf.directory.clone();
+
         let mut cmd = Command::new(&conf.command[0]);
 
+        cmd.args(&conf.command[1..])
+            .envs(&conf.environment)
+            .stdin(Stdio::null())
+            .stdout(stdout)
+            .stderr(stderr)
+            .uid(v_uid);
+
         unsafe {
-            cmd.args(&conf.command[1..])
-                .envs(&conf.environment)
-                .stdin(Stdio::null())
-                .stdout(stdout)
-                .stderr(stderr)
-                .uid(v_uid)
-                .pre_exec(move || {
-                    umask(Mode::from_bits(v_umask).unwrap());
-                    Ok(())
-                });
+            cmd.pre_exec(move || {
+                File::create(stderr_path.to_owned())?;
+                File::create(stdout_path.to_owned())?;
+                umask(Mode::from_bits(v_umask).unwrap());
+                set_current_dir(directory.to_owned())
+            });
         }
         Ok(cmd)
     }
@@ -168,22 +174,22 @@ impl Process {
     }
 
     fn spawn_process(&mut self) -> Result<(), RpcError> {
-        self.proc = Some(
-            self.command
-                .spawn()
-                .map_err(|e| RpcError::spawn(e.to_string().as_str()))?,
-        );
+        let proc = self.command.spawn();
+
+        if let Err(e) = proc {
+            self.goto(ProcessState::Fatal, format!("spawn failed - error={}", e));
+            return Err(RpcError::spawn(e.to_string().as_str()));
+        }
+
+        self.proc = Some(proc.unwrap());
         Ok(())
     }
 
     fn send_signal(&mut self, signal: Signal) -> Result<(), RpcError> {
-        match signal::kill(
-            Pid::from_raw(self.proc.as_ref().unwrap().id() as i32),
-            signal,
-        ) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(RpcError::ProcessNotFound(self.id.name.to_owned())),
-        }
+        let proc = self.proc.as_ref().unwrap();
+        let pid = Pid::from_raw(proc.id() as i32);
+
+        signal::kill(pid, signal).map_err(|_| RpcError::ProcessNotFound(self.id.name.to_owned()))
     }
 
     fn autorestart(&mut self) -> Result<(), RpcError> {
