@@ -13,10 +13,12 @@ pub struct Net {
 
 impl Net {
     pub fn new(sock_path: &str) -> Self {
-        Net {
+        let mut net = Net {
             sock_path: sock_path.to_owned(),
-            stream: Net::connect(sock_path),
-        }
+            stream: None,
+        };
+        net.communicate_with_server(vec!["status"]);
+        net
     }
 
     fn connect(sock_path: &str) -> Option<UnixStream> {
@@ -47,7 +49,7 @@ impl Net {
         let req = Request::from(&words);
         let mut stream = self.stream.as_ref().ok_or(std::io::Error::new(
             ErrorKind::NotConnected,
-            format!("{} refused connection", self.sock_path),
+            format!("not connected"),
         ))?;
 
         let line: String = serde_json::to_string::<Request>(&req)?;
@@ -59,7 +61,7 @@ impl Net {
     fn recv_response(&mut self) -> Result<(), std::io::Error> {
         let mut stream = self.stream.as_ref().ok_or(std::io::Error::new(
             ErrorKind::NotConnected,
-            format!("{} refused connection", self.sock_path),
+            format!("not connected"),
         ))?;
 
         let mut line = String::new();
@@ -79,11 +81,12 @@ impl Net {
     pub fn communicate_with_server(&mut self, words: Vec<&str>) {
         self.stream = Net::connect(self.sock_path.as_str());
         if let Err(e) = self.send_command(words) {
-            eprintln!("Service Temporary Unavailable: {e}");
+            eprintln!("Service temporary unavailable: {e}");
             self.disconnect();
+            return;
         }
         if let Err(e) = self.recv_response() {
-            eprintln!("Service Temporary Unavailable: {e}");
+            eprintln!("Service temporary unavailable: {e}");
             self.disconnect();
         }
     }

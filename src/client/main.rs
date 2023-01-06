@@ -37,7 +37,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             Ok(words) => match words[0] {
                 "help" => command::print_help(words),
                 "version" => command::print_version(),
-                "open" => net.open(words[1]),
+                "open" => {
+                    net.open(words[1]);
+                    net.communicate_with_server(vec!["status"]);
+                }
                 "exit" | "quit" => process::exit(0),
                 _ => net.communicate_with_server(words),
             },
