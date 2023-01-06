@@ -6,16 +6,21 @@ extern crate lib;
 
 use lib::config::Config;
 use lib::CONF_FILE;
-use net::Net;
+
+use std::env;
 use std::error::Error;
 use std::process;
+
+use net::Net;
 use terminal::Terminal;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let conf = match Config::from(CONF_FILE) {
-        Ok(o) => o,
-        Err(e) => lib::exit_with_error(e),
-    };
+    let args: Vec<String> = env::args().collect();
+    let conf_file = if args.len() > 1 { &args[1] } else { CONF_FILE };
+    let conf = Config::from(conf_file).unwrap_or_else(|e| {
+        eprintln!("{e}");
+        std::process::exit(1);
+    });
 
     let mut terminal = Terminal::new("taskmaster>");
     let mut net = Net::new(&conf.general.sockfile);
