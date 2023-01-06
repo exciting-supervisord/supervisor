@@ -58,11 +58,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         thread::sleep(Duration::from_millis(500));
         if control::UPDATE.load(Ordering::Relaxed) {
+            LOG.info("reload signal (HUP) detected.. reloading");
             supervisor.borrow_mut().update(Vec::new());
             control::UPDATE.store(false, Ordering::Relaxed);
         }
         if control::SHUTDOWN.load(Ordering::Relaxed) {
-            LOG.info("shutdown signal dected.. cleaning up"); // sockfile ?
+            LOG.info("shutdown signal detected.. cleaning up");
             supervisor.borrow_mut().cleanup_processes();
 
             break;
