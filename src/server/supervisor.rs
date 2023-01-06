@@ -2,6 +2,7 @@ mod process;
 
 use std::collections::HashMap;
 use std::mem;
+use std::sync::atomic::Ordering;
 use std::vec::Vec;
 
 use lib::config::{Config, ProgramConfig};
@@ -12,6 +13,7 @@ use lib::response::{
     Action, Error as RpcError, OutputMessage as RpcOutput, Response as RpcResponse,
 };
 
+use super::control;
 use process::*;
 
 pub struct Supervisor {
@@ -99,7 +101,8 @@ impl Supervisor {
     //     Shutdown() -> ()
     pub fn shutdown(&mut self, _: Vec<String>) -> RpcResponse {
         LOG.info("handle request - shutdown");
-        self.cleanup_processes();
+        // self.cleanup_processes();
+        control::SHUTDOWN.store(true, Ordering::Relaxed);
         RpcResponse::from_output(RpcOutput::new("taskmasterd", "shutdown"))
     }
 
@@ -189,7 +192,7 @@ impl Supervisor {
         operation(process)
     }
 
-    fn cleanup_processes(&mut self) {
+    pub fn cleanup_processes(&mut self) {
         let keys: Vec<ProcessId> = self.processes.iter().map(|(k, _)| k.to_owned()).collect();
 
         for key in keys {

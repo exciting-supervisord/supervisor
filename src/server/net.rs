@@ -105,9 +105,7 @@ impl<'a> UdsRpcServer<'a> {
             }
         };
 
-        let method = req.method.clone();
         let res = self.exec_method(req);
-
         if let Err(e) = serde_json::to_writer(socket, &res) {
             LOG.warn(&format!(
                 "fail to resoponse to client - response={}, error={e}",
@@ -119,10 +117,6 @@ impl<'a> UdsRpcServer<'a> {
         }
 
         LOG.info(&format!("request handled - response=\n{}", res));
-
-        if method == "shutdown" {
-            std::process::exit(0);
-        }
     }
 
     pub fn try_handle_client(&mut self) -> bool {

@@ -1,3 +1,4 @@
+mod control;
 mod net;
 mod supervisor;
 
@@ -10,29 +11,9 @@ use net::UdsRpcServer;
 use supervisor::Supervisor;
 
 use core::cell::RefCell;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
-
-use nix::sys::signal::{self, SigHandler, Signal};
-
-static SIGNALED: AtomicBool = AtomicBool::new(false);
-
-extern "C" fn handle_sigint(signal: libc::c_int) {
-    let signal = Signal::try_from(signal).unwrap();
-    SIGNALED.store(
-        Signal::SIGINT == signal || Signal::SIGTERM == signal,
-        Ordering::Relaxed,
-    );
-}
-
-fn set_signal_handlers() {
-    let handler = SigHandler::Handler(handle_sigint);
-    unsafe {
-        signal::signal(Signal::SIGINT, handler).expect("signal");
-        signal::signal(Signal::SIGTERM, handler).expect("signal");
-    }
-}
 
 fn set_command_handlers<'a, 'b>(
     server: &'a mut UdsRpcServer<'b>,
@@ -54,7 +35,7 @@ fn set_command_handlers<'a, 'b>(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    set_signal_handlers();
+    control::set_signal_handlers();
     daemonize(LOG_FILE).unwrap_or_else(|e| lib::exit_with_error(Box::new(e)));
 
     LOG.info(&format!("read config file from {CONF_FILE}"));
@@ -76,8 +57,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         supervisor.borrow_mut().supervise()?;
 
         thread::sleep(Duration::from_millis(500));
-        if SIGNALED.load(Ordering::Relaxed) {
-            LOG.info("shutdown signal dected.. cleaning up");
+        if control::UPDATE.load(Ordering::Relaxed) {
+            LOG.info("reload signal (HUP) detected.. reloading");
+            supervisor.borrow_mut().update(Vec::new());
+            control::UPDATE.store(false, Ordering::Relaxed);
+        }
+        if control::SHUTDOWN.load(Ordering::Relaxed) {
+            LOG.info("shutdown signal detected.. cleaning up");
+            supervisor.borrow_mut().cleanup_processes();
+
             break;
         }
     }
