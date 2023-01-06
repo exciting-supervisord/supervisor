@@ -11,6 +11,7 @@ use net::UdsRpcServer;
 use supervisor::Supervisor;
 
 use core::cell::RefCell;
+use std::env;
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -37,13 +38,17 @@ fn set_command_handlers<'a, 'b>(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
+    let conf_file = if args.len() > 1 { &args[1] } else { CONF_FILE };
+    println!("\nConfiguration file: {conf_file}\n");
+    println!("If you want to set the other configuration file, put it on the first argument.\n");
     control::set_signal_handlers();
     daemonize(LOG_FILE).unwrap_or_else(|e| lib::exit_with_error(Box::new(e)));
 
-    LOG.info(&format!("read config file from {CONF_FILE}"));
-    let conf = Config::from(CONF_FILE).unwrap_or_else(|e| lib::exit_with_error(e));
+    LOG.info(&format!("read config file from {conf_file}"));
+    let conf = Config::from(conf_file).unwrap_or_else(|e| lib::exit_with_error(e));
 
-    let supervisor = Supervisor::new(CONF_FILE, conf)?;
+    let supervisor = Supervisor::new(conf_file, conf)?;
     let supervisor = RefCell::new(supervisor);
     let mut server = UdsRpcServer::new(supervisor.borrow().sockfile())
         .unwrap_or_else(|e| lib::exit_with_error(e));

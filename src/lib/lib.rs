@@ -1,12 +1,12 @@
 pub mod config;
+pub mod daemon;
 pub mod logger;
 pub mod process_id;
 pub mod process_status;
 pub mod request;
 pub mod response;
-pub mod daemon;
 
-pub const CONF_FILE: &'static str = "./general.ini";
+pub const CONF_FILE: &'static str = "/etc/tmd/taskmaster.ini";
 pub const LOG_FILE: &'static str = "/tmp/taskmaster.log";
 pub const TM_VERSION: &'static str = "0.0.1";
 

@@ -3,7 +3,6 @@ extern crate libc;
 mod ffi;
 mod flushable;
 mod line_editor;
-mod termios_ctor;
 
 use flushable::Flushable;
 use line_editor::LineEditor;
