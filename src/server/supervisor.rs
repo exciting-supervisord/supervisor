@@ -28,20 +28,20 @@ impl Supervisor {
     }
 
     pub fn new(file_path: &str, config: Config) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut processes = HashMap::new();
+        let mut sp = Supervisor {
+            file_path: file_path.to_owned(),
+            config: Default::default(),
+            processes: HashMap::new(),
+            trashes: Vec::new(),
+        };
 
         for (_, v) in config.programs.iter() {
-            for index in 0..v.numprocs {
-                let process = Process::new(v, index)?;
-                processes.insert(process.get_id(), process);
+            for seq in 0..v.numprocs {
+                sp.add_process(v, seq)?;
             }
         }
-        Ok(Supervisor {
-            file_path: file_path.to_owned(),
-            config,
-            processes,
-            trashes: Vec::new(),
-        })
+        sp.config = config;
+        Ok(sp)
     }
 
     pub fn supervise(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -159,7 +159,10 @@ impl Supervisor {
     }
 
     fn add_process(&mut self, conf: &ProgramConfig, seq: u32) -> Result<(), RpcError> {
-        let process = Process::new(conf, seq)?;
+        let mut process = Process::new(conf, seq)?;
+        if conf.autostart {
+            process.start()?;
+        }
         self.processes.insert(process.get_id(), process);
         Ok(())
     }
@@ -167,7 +170,10 @@ impl Supervisor {
     fn revive_process(&mut self, process_id: &ProcessId) -> Result<(), RpcError> {
         let conf = self.config.programs.get(&process_id.name).unwrap();
 
-        let process = Process::new(conf, process_id.seq)?;
+        let mut process = Process::new(conf, process_id.seq)?;
+        if conf.autostart {
+            process.start()?;
+        }
         self.processes.insert(process.get_id(), process);
         Ok(())
     }

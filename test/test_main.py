@@ -193,3 +193,54 @@ def test_stop_noexist(tm):
 #     sleep(1)
 #     for item in psutil.process_iter():
 #         item.cmdline
+
+@pytest.mark.parametrize("tm", ["test/restart_simple_success.ini"], indirect=True)
+def test_restart_simple_success(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+    
+    # restart process in not running state.
+    output = get_ctl_result(tm, 'restart tailf:0')
+    print(output)
+    assert output == 'tailf:0: not running.\r\ntailf:0: started'
+    
+    # wait util state turned into success
+    sleep(3)
+
+    # # show status
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    assert re.match(r'tailf:0\s+Running\s+pid \d+, uptime 0:00:\d\d', output)
+
+
+@pytest.mark.parametrize("tm", ["test/restart_simple_success2.ini"], indirect=True)
+def test_restart_simple_success2(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+    
+    # restart process in running state
+    output = get_ctl_result(tm, 'restart tailf:0')
+    print(output)
+    assert output == 'tailf:0: stopping\r\ntailf:0: started'
+    
+    # wait util state turned into success
+    sleep(3)
+
+    # # show status
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    assert re.match(r'tailf:0\s+Running\s+pid \d+, uptime 0:00:\d\d', output)
+
+
+@pytest.mark.parametrize("tm", ["test/restart_simple_success.ini"], indirect=True)
+def test_restart_noexist(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+    
+    # restart process in running state
+    output = get_ctl_result(tm, 'restart noexist:0')
+    print(output)
+    assert output == 'noexist:0: no such process.\r\nnoexist:0: no such process.'
