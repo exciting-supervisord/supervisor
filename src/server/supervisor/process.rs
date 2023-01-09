@@ -15,7 +15,7 @@ use lib::response::{Error as RpcError, OutputMessage as RpcOutput};
 use nix::libc::{dup2, getpwnam, getuid, open};
 use nix::sys::signal::{self, Signal};
 use nix::sys::stat::{umask, Mode};
-use nix::unistd::Pid;
+use nix::unistd::{setuid, Pid, Uid};
 
 use libc::{O_CREAT, O_TRUNC, O_WRONLY};
 
@@ -133,11 +133,11 @@ impl Process {
 
         cmd.args(&conf.command[1..])
             .envs(&conf.environment)
-            .stdin(Stdio::null())
-            .uid(v_uid);
+            .stdin(Stdio::null());
 
         unsafe {
             cmd.pre_exec(move || {
+                setuid(Uid::from_raw(v_uid))?;
                 umask(Mode::from_bits(v_umask).unwrap());
                 let stderr_ptr = stderr_path.as_ptr() as *const c_char;
                 let stdout_ptr = stdout_path.as_ptr() as *const c_char;
@@ -149,7 +149,7 @@ impl Process {
                     ));
                     return Err(std::io::Error::new(
                         ErrorKind::Other,
-                        format!("not connected"),
+                        format!("can not spawn"),
                     ));
                 }
                 set_current_dir(directory.to_owned())
