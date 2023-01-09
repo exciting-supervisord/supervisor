@@ -1,1 +1,1 @@
-cargo build && sudo pytest ./test --forked
+cargo build && sudo pytest ./test $@

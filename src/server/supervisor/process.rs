@@ -52,7 +52,7 @@ impl IProcess for Process {
     fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError> {
         let command = Process::new_command(config)?;
         let id = ProcessId::new(config.name.to_owned(), index);
-        let mut process = Process {
+        let process = Process {
             id,
             command,
             proc: None,
@@ -64,10 +64,6 @@ impl IProcess for Process {
             description: String::from(INIT_DESCRIPTION),
             conf: ProcessConfig::from(config),
         };
-
-        if config.autostart {
-            process.start()?;
-        }
         Ok(process)
     }
 
