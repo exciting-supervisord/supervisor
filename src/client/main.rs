@@ -16,9 +16,17 @@ use terminal::Terminal;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
-    let conf_file = if args.len() > 1 { &args[1] } else { CONF_FILE };
-    println!("\nConfiguration file: {conf_file}\n");
-    println!("If you want to set the other configuration file, put it on the first argument.\n");
+
+    let conf_file = match args.len() {
+        1 => CONF_FILE,
+        2 => &args[1],
+        _ => {
+            eprintln!("usage: {} [conf_file]", &args[0]);
+            eprintln!("if conf_file is missing, default ({CONF_FILE}) will be used.");
+            std::process::exit(1);
+        }
+    };
+
     let conf = Config::from(conf_file).unwrap_or_else(|e| {
         eprintln!("{e}");
         std::process::exit(1);

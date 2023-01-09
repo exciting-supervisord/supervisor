@@ -39,11 +39,19 @@ fn set_command_handlers<'a, 'b>(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    let conf_file = if args.len() > 1 { &args[1] } else { CONF_FILE };
-    println!("\nConfiguration file: {conf_file}\n");
-    println!("If you want to set the other configuration file, put it on the first argument.\n");
+
+    let conf_file = match args.len() {
+        1 => CONF_FILE,
+        2 => &args[1],
+        _ => {
+            eprintln!("usage: {} [conf_file]", &args[0]);
+            eprintln!("if conf_file is missing, default ({CONF_FILE}) will be used.");
+            std::process::exit(1);
+        }
+    };
+
     control::set_signal_handlers();
-    daemonize(LOG_FILE).unwrap_or_else(|e| lib::exit_with_error(Box::new(e)));
+    // daemonize(LOG_FILE).unwrap_or_else(|e| lib::exit_with_error(Box::new(e)));
 
     LOG.info(&format!("read config file from {conf_file}"));
     let conf = Config::from(conf_file).unwrap_or_else(|e| lib::exit_with_error(e));
@@ -65,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         thread::sleep(Duration::from_millis(500));
         if control::UPDATE.load(Ordering::Relaxed) {
-            LOG.info("reload signal (HUP) detected.. reloading");
+            LOG.info("reload signal (HUP) detected.. reloading configuration.");
             supervisor.borrow_mut().update(Vec::new());
             control::UPDATE.store(false, Ordering::Relaxed);
         }

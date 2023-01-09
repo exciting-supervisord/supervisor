@@ -31,9 +31,9 @@ update\t\t\tReload config and add/remove as necessary, and will restart affected
 // remove <name:seq> [...]	Removes process/group from active config";
 
 pub const HELP_STATUS: &'static str = "\
-status <name:seq>				Get status for a single process
+status <name:seq>		Get status for a single process
 status <name:seq> <name:seq>	Get status for multiple named processes
-status							Get all process status info";
+status				Get all process status info";
 
 pub const HELP_STOP: &'static str = "\
 stop <name:seq>			Stop a process
@@ -44,7 +44,7 @@ pub const HELP_RESTART: &'static str = "\
 restart <name:seq>		Restart a process
 restart <name:seq> <name:seq>	Restart multiple processes or groups
 restart all			Restart all processes
-Note: restart does not reread config files. For that, see reread and update.";
+Note: restart does not update config files. For that, see update.";
 
 pub const HELP_START: &'static str = "\
 start <name:seq>		Start a process

@@ -10,8 +10,8 @@ impl ProcessId {
     }
 }
 
-impl ToString for ProcessId {
-    fn to_string(&self) -> String {
-        format!("{}:{}", self.name, self.seq)
+impl std::fmt::Display for ProcessId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.name, self.seq)
     }
 }

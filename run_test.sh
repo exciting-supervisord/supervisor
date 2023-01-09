@@ -1,0 +1,1 @@
+cargo build && sudo pytest ./test --forked

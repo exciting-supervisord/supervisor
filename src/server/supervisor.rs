@@ -61,7 +61,11 @@ impl Supervisor {
 
     pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
         LOG.info(&format!("handle request - start, names={:?}", names));
-        let inputs = self.convert_to_process_ids(&names);
+        let inputs = if names.contains(&String::from("all")) {
+            Vec::from_iter(self.config.process_list().into_iter())
+        } else {
+            self.convert_to_process_ids(&names)
+        };
 
         let act = inputs
             .iter()
@@ -72,7 +76,11 @@ impl Supervisor {
 
     pub fn stop(&mut self, names: Vec<String>) -> RpcResponse {
         LOG.info(&format!("handle request - stop, names={:?}", names));
-        let inputs = self.convert_to_process_ids(&names);
+        let inputs = if names.contains(&String::from("all")) {
+            Vec::from_iter(self.config.process_list().into_iter())
+        } else {
+            self.convert_to_process_ids(&names)
+        };
 
         let act = inputs
             .iter()
@@ -83,7 +91,11 @@ impl Supervisor {
 
     pub fn restart(&mut self, names: Vec<String>) -> RpcResponse {
         LOG.info(&format!("handle request - stop, names={:?}", names));
-        let inputs = self.convert_to_process_ids(&names);
+        let inputs = if names.contains(&String::from("all")) {
+            Vec::from_iter(self.config.process_list().into_iter())
+        } else {
+            self.convert_to_process_ids(&names)
+        };
 
         let act = inputs
             .iter()
