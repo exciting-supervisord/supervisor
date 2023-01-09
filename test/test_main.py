@@ -3,6 +3,7 @@ import os
 import pwd
 import subprocess
 from time import sleep
+from functools import reduce
 
 import psutil
 import pytest
@@ -18,6 +19,7 @@ def get_ctl_result(tm, command):
     tm.sendline(command)
     tm.expect(rf"{command}\r\n(.*)\r\ntaskmaster> ")
     return tm.match.group(1).decode("utf-8").strip()
+
 
 def is_euid(uid):
     def inner(proc):
@@ -44,8 +46,11 @@ def cleanup():
         proc.kill()
 
     # remove temp files
-    os.remove("/tmp/taskmaster.sock")
-    os.remove("/tmp/taskmaster.log")
+    try:
+        os.remove("/tmp/taskmaster.sock")
+        os.remove("/tmp/taskmaster.log")
+    except:
+        pass
 
 
 def prerun(conf):
@@ -61,6 +66,19 @@ def tm(request):
     yield pexpect.spawn(TMCTL, [request.param], timeout=TIMEOUT)
     cleanup()
 
+def overwrite(dst, src):
+    with open(dst, 'w') as fdst:
+        with open(src, 'r') as fsrc:
+            fdst.write(fsrc.read())
+
+@pytest.fixture
+def varying_text(request):
+    (filename, origin, modified) = request.param
+
+    overwrite(filename, origin)
+    def change():
+        overwrite(filename, modified)
+    return change
 
 @pytest.mark.parametrize("tm", ["test/status_before_begin.ini"], indirect=True)
 def test_status_not_begin(tm):
@@ -181,18 +199,25 @@ def test_stop_noexist(tm):
     print(output)
 
 
-# @pytest.mark.parametrize("tm", ["test/start_simple_success.ini"], indirect=True)
-# def test_shutdown(tm):
-#     # ignore strings before first prompt
-#     tm.expect(r".*taskmaster> ")
+def is_tmd(proc):
+    cmd = proc.cmdline()
+    return (
+        len(cmd) == 2
+        and cmd[0] == TMD
+        and cmd[1] == 'test/start_simple_success.ini'
+    )
 
-#     # call stop (should not crash)
-#     output = get_ctl_result(tm, 'shutdown')
-#     assert output == 'taskmasterd: shutdown'
+@pytest.mark.parametrize("tm", ["test/start_simple_success.ini"], indirect=True)
+def test_shutdown(tm):
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
 
-#     sleep(1)
-#     for item in psutil.process_iter():
-#         item.cmdline
+    # shutdown
+    output = get_ctl_result(tm, 'shutdown')
+    assert output == 'taskmasterd: shutdown'
+
+    sleep(1)
+    assert (not reduce(lambda acc, cur: acc or is_tmd(cur), psutil.process_iter(), False))
 
 @pytest.mark.parametrize("tm", ["test/restart_simple_success.ini"], indirect=True)
 def test_restart_simple_success(tm):
@@ -244,3 +269,27 @@ def test_restart_noexist(tm):
     output = get_ctl_result(tm, 'restart noexist:0')
     print(output)
     assert output == 'noexist:0: no such process.\r\nnoexist:0: no such process.'
+
+@pytest.mark.parametrize("varying_text", [("test/update_simple.ini", "test/update_simple_origin.ini", "test/update_simple_modified.ini")], indirect=True)
+@pytest.mark.parametrize("tm", ["test/update_simple.ini"], indirect=True)
+def test_update(varying_text, tm):
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+
+    # test status
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    # every process is not started yet
+    assert re.match(r"a:0\s+Stopped\s+Not started", output)
+
+    # change configure file
+    varying_text()
+    output = get_ctl_result(tm, 'update')
+    assert 'configuration: updated' == output
+    print(output)
+
+    # test status
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    # every process is not started yet
+    assert re.match(r"b:0\s+Stopped\s+Not started", output)
