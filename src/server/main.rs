@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nConfiguration file: {conf_file}\n");
     println!("If you want to set the other configuration file, put it on the first argument.\n");
     control::set_signal_handlers();
-    daemonize(LOG_FILE).unwrap_or_else(|e| lib::exit_with_error(Box::new(e)));
+    // daemonize(LOG_FILE).unwrap_or_else(|e| lib::exit_with_error(Box::new(e)));
 
     LOG.info(&format!("read config file from {conf_file}"));
     let conf = Config::from(conf_file).unwrap_or_else(|e| lib::exit_with_error(e));
@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         thread::sleep(Duration::from_millis(500));
         if control::UPDATE.load(Ordering::Relaxed) {
-            LOG.info("reload signal (HUP) detected.. reloading");
+            LOG.info("reload signal (HUP) detected.. reloading configuration.");
             supervisor.borrow_mut().update(Vec::new());
             control::UPDATE.store(false, Ordering::Relaxed);
         }

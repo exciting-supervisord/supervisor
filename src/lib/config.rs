@@ -209,7 +209,7 @@ impl ProgramConfig {
             || self.startretries != other.startretries
             || self.stopsignal != other.stopsignal
             || self.stopwaitsecs != other.stopwaitsecs
-            || self.command != self.command
+            || self.command != other.command
     }
 }
 
