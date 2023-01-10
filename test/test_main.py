@@ -67,23 +67,21 @@ def tm(request):
     yield pexpect.spawn(TMCTL, [request.param], timeout=TIMEOUT)
     cleanup()
 
-
 def overwrite(dst, src):
     with open(dst, 'w') as fdst:
         with open(src, 'r') as fsrc:
             fdst.write(fsrc.read())
-
 
 @pytest.fixture
 def varying_text(request):
     (filename, origin, modified) = request.param
 
     overwrite(filename, origin)
+    os.chmod(filename, 0o666)
 
     def change():
         overwrite(filename, modified)
-    return change
-
+    yield change
 
 @pytest.mark.parametrize("tm", ["test/status_before_begin.ini"], indirect=True)
 def test_status_not_begin(tm):
