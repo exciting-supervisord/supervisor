@@ -744,5 +744,6 @@ def test_umask(tm):
 
     stat_result = os.stat('/tmp/somefile.txt')
 
-    print (stat_result.st_mode)
+    print(oct(stat_result.st_mode & 0o777))
+    assert (stat_result.st_mode & 0o777) == 0o066
 
