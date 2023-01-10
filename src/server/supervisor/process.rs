@@ -119,8 +119,12 @@ impl IProcess for Process {
 
 impl Process {
     fn new_command(conf: &ProgramConfig) -> Result<Command, RpcError> {
-        let stdout_path = conf.stdout_logfile.to_owned();
-        let stderr_path = conf.stderr_logfile.to_owned();
+        let mut stdout_path = conf.stdout_logfile.to_owned();
+        let mut stderr_path = conf.stderr_logfile.to_owned();
+
+        stdout_path.push('\0');
+        stderr_path.push('\0');
+
         let v_uid = Process::get_uid(&conf.user);
         let v_umask = conf.umask.unwrap_or(0o022);
         let directory = conf.directory.clone();
@@ -158,9 +162,10 @@ impl Process {
         if let None = user_name {
             return unsafe { getuid() };
         }
-        let user_name = user_name.as_ref().unwrap();
-        let name_ptr = user_name.as_ptr() as *const i8;
+        let mut user_name = user_name.as_ref().unwrap().to_string();
+        user_name.push('\0');
         unsafe {
+            let name_ptr = user_name.as_ptr() as *const i8;
             let passwd = getpwnam(name_ptr);
             if passwd.is_null() {
                 let msg = format!("there is no user named {user_name}. the process uid will be set to taskmasterd's.");
@@ -200,7 +205,7 @@ impl Process {
 
     fn autorestart(&mut self) -> Result<(), RpcError> {
         self.start_process()?;
-        self.current_try = 0;
+        self.current_try = 1;
         self.exit_status = None;
         Ok(())
     }
@@ -223,8 +228,8 @@ impl Process {
 
     fn starting(&mut self) {
         if self.is_process_alive() {
-            let running_secs = self.start_at.unwrap().elapsed().as_secs();
-            if running_secs > self.conf.startsecs {
+            let running_millis = self.start_at.unwrap().elapsed().as_millis() as u64;
+            if running_millis > self.conf.startsecs * 1000 - lib::EVENT_LOOP_TIME {
                 self.goto(
                     ProcessState::Running,
                     format!("pid {}, uptime 0:00:00", self.proc.as_ref().unwrap().id(),),
@@ -267,8 +272,8 @@ impl Process {
 
     fn stopping(&mut self) -> Result<(), RpcError> {
         if self.is_process_alive() {
-            let interval = self.stop_at.unwrap().elapsed().as_secs();
-            if interval > self.conf.stopwaitsecs {
+            let interval = self.stop_at.unwrap().elapsed().as_millis() as u64;
+            if interval > self.conf.stopwaitsecs * 1000 - lib::EVENT_LOOP_TIME {
                 self.send_signal(Signal::SIGKILL)?;
             }
         } else {
