@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         server.try_handle_client();
         supervisor.borrow_mut().supervise()?;
 
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep(Duration::from_millis(lib::EVENT_LOOP_TIME));
         if control::UPDATE.load(Ordering::Relaxed) {
             LOG.info("reload signal (HUP) detected.. reloading configuration.");
             supervisor.borrow_mut().update(Vec::new());

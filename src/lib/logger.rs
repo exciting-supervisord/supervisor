@@ -47,7 +47,7 @@ impl Logger {
             strftime(
                 buf.as_mut_ptr() as *mut i8,
                 64,
-                "%Y-%m-%d %H:%M:%S.".as_ptr() as *const i8,
+                "%Y-%m-%d %H:%M:%S.\0".as_ptr() as *const i8,
                 &datetime,
             )
         };
