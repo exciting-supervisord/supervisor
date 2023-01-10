@@ -7,4 +7,3 @@ __pycache__
 
 # varing test file
 test/update_simple.ini
-test/*.log

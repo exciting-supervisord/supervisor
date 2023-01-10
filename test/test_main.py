@@ -295,7 +295,7 @@ def test_conf_command(tm):
 
     get_ctl_result(tm, 'start conf_command:0')
 
-    with open('test/conf_command.log') as f:
+    with open('/tmp/conf_command.log') as f:
         contents = f.read()
         assert contents == 'arg1 arg2\narg1 arg2 arg3 arg4\n4\n'
 
@@ -670,7 +670,7 @@ def test_conf_directory(tm):
     sleep(1)
 
     # check contents in log file
-    with open('test/conf_directory.log') as f:
+    with open('/tmp/conf_directory.log') as f:
         contents = f.read()
         print(contents)
         assert contents == '/tmp\n'
@@ -687,7 +687,7 @@ def test_conf_env(tm):
 
     sleep(1)
 
-    with open('test/conf_environment.log') as f:
+    with open('/tmp/conf_environment.log') as f:
         contents = f.read()
 
         expected = [
@@ -699,7 +699,7 @@ def test_conf_env(tm):
 
 
 @pytest.mark.parametrize("tm", ["test/conf_user.ini"], indirect=True)
-def test_conf_env(tm):
+def test_conf_user(tm):
 
     # ignore strings before first prompt
     tm.expect(r".*taskmaster> ")
@@ -709,9 +709,41 @@ def test_conf_env(tm):
 
     sleep(2)
 
-    with open('test/conf_user.log') as f:
+    with open('/tmp/conf_user.log') as f:
         contents = f.read()
 
         print(contents)
 
-        assert f'{str(os.geteuid())}\n' == contents
+        assert f'{os.geteuid()}\n' == contents
+
+@pytest.mark.parametrize("tm", ["test/stderr_logfile.ini"], indirect=True)
+def test_stderr_logfile(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+
+    # start process
+    get_ctl_result(tm, 'start eecho:0')
+
+    sleep(2)
+
+    with open('/tmp/eecho.err') as f:
+        contents = f.read()
+        print(contents)
+        assert contents == 'Hello\n'
+
+@pytest.mark.parametrize("tm", ["test/umask.ini"], indirect=True)
+def test_umask(tm):    
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+
+    # start process
+    get_ctl_result(tm, 'start touch:0')
+
+    sleep(2)
+
+    stat_result = os.stat('/tmp/somefile.txt')
+
+    print(oct(stat_result.st_mode & 0o777))
+    assert (stat_result.st_mode & 0o777) == 0o066
+
