@@ -67,10 +67,12 @@ def tm(request):
     yield pexpect.spawn(TMCTL, [request.param], timeout=TIMEOUT)
     cleanup()
 
+
 def overwrite(dst, src):
     with open(dst, 'w') as fdst:
         with open(src, 'r') as fsrc:
             fdst.write(fsrc.read())
+
 
 @pytest.fixture
 def varying_text(request):
@@ -82,6 +84,7 @@ def varying_text(request):
     def change():
         overwrite(filename, modified)
     yield change
+
 
 @pytest.mark.parametrize("tm", ["test/status_before_begin.ini"], indirect=True)
 def test_status_not_begin(tm):
@@ -290,8 +293,7 @@ def test_conf_command(tm):
     # ignore strings before first prompt
     tm.expect(r".*taskmaster> ")
 
-    # restart process in running state
-    output = get_ctl_result(tm, 'start conf_command:0')
+    get_ctl_result(tm, 'start conf_command:0')
 
     with open('test/conf_command.log') as f:
         contents = f.read()
@@ -304,7 +306,6 @@ def test_conf_numprocs(tm):
     # ignore strings before first prompt
     tm.expect(r".*taskmaster> ")
 
-    # restart process in running state
     output = get_ctl_result(tm, 'start all')
 
     expected = [
@@ -323,7 +324,6 @@ def test_conf_autostart(tm):
     # ignore strings before first prompt
     tm.expect(r".*taskmaster> ")
 
-    # restart process in running state
     output = get_ctl_result(tm, 'status')
 
     expected = [
@@ -343,7 +343,6 @@ def test_conf_exitcodes(tm):
 
     sleep(3)
 
-    # restart process in running state
     output = get_ctl_result(tm, 'status')
 
     expected = [
@@ -362,7 +361,6 @@ def test_autorestart_unexpected(tm):
 
     for _ in range(0, 5):
         sleep(1)
-        # restart process in running state
         output = get_ctl_result(tm, 'status')
 
         expected = [
@@ -383,7 +381,6 @@ def test_autorestart_always(tm):
 
     for _ in range(0, 5):
         sleep(1)
-        # restart process in running state
         output = get_ctl_result(tm, 'status')
 
         expected = [
@@ -404,7 +401,6 @@ def test_conf_autorestart_never(tm):
 
     sleep(3)
 
-    # restart process in running state
     output = get_ctl_result(tm, 'status')
 
     expected = [
@@ -423,7 +419,6 @@ def test_conf_startsecs(tm):
 
     sleep(1)
 
-    # restart process in running state
     output = get_ctl_result(tm, 'status')
 
     expected = [
@@ -435,7 +430,6 @@ def test_conf_startsecs(tm):
 
     sleep(1)
 
-    # restart process in running state
     output = get_ctl_result(tm, 'status')
 
     expected = [
@@ -447,7 +441,6 @@ def test_conf_startsecs(tm):
 
     sleep(3)
 
-    # restart process in running state
     output = get_ctl_result(tm, 'status')
 
     expected = [
@@ -466,7 +459,6 @@ def test_conf_startsecs2(tm):
 
     sleep(1)
 
-    # restart process in running state
     output = get_ctl_result(tm, 'status')
 
     expected = [
@@ -478,7 +470,7 @@ def test_conf_startsecs2(tm):
 
     sleep(1)
 
-    # restart process in running state
+    # input status to tmctl
     output = get_ctl_result(tm, 'status')
 
     expected = [
@@ -490,7 +482,7 @@ def test_conf_startsecs2(tm):
 
     sleep(2)
 
-    # restart process in running state
+    # input status to tmctl
     output = get_ctl_result(tm, 'status')
 
     expected = [
@@ -533,21 +525,21 @@ def test_start_retries1(tm):
 
     # ignore strings before first prompt
     tm.expect(r".*taskmaster> ")
-    
+
     # restart process in running state
     output = get_ctl_result(tm, 'start dies:0')
     print(output)
     assert output == 'dies:0: started'
-    
+
     output = get_ctl_result(tm, 'status')
     print(output)
-    assert re.match(r'dies:0\s+(Starting|Backoff\s+Exited too quickly.)', output)
-    
+    assert re.match(
+        r'dies:0\s+(Starting|Backoff\s+Exited too quickly.)', output)
+
     sleep(2)
     output = get_ctl_result(tm, 'status')
     print(output)
     assert re.match(r'dies:0\s+Fatal\s+Exited too quickly.', output)
-
 
 
 @pytest.mark.parametrize("tm", ["test/start_retries2.ini"], indirect=True)
@@ -555,31 +547,33 @@ def test_start_retries2(tm):
 
     # ignore strings before first prompt
     tm.expect(r".*taskmaster> ")
-    
+
     # restart process in running state
     output = get_ctl_result(tm, 'start dies:0')
     print(output)
     assert output == 'dies:0: started'
-    
+
     output = get_ctl_result(tm, 'status')
     print(output)
-    assert re.match(r'dies:0\s+(Starting|Backoff\s+Exited too quickly.)', output)
-    
+    assert re.match(
+        r'dies:0\s+(Starting|Backoff\s+Exited too quickly.)', output)
+
     sleep(3)
     output = get_ctl_result(tm, 'status')
     print(output)
     assert re.match(r'dies:0\s+Fatal\s+Exited too quickly.', output)
+
 
 @pytest.mark.parametrize("tm", ["test/stop_signal1.ini"], indirect=True)
 def test_stop_signal1(tm):
 
     # ignore strings before first prompt
     tm.expect(r".*taskmaster> ")
-    
+
     output = get_ctl_result(tm, 'start sig_echo:0')
     print(output)
     assert output == 'sig_echo:0: started'
-    
+
     sleep(2)
     output = get_ctl_result(tm, 'stop sig_echo:0')
     print(output)
@@ -589,16 +583,17 @@ def test_stop_signal1(tm):
     with open('/tmp/sig_echo.log') as f:
         assert f.read() == 'INT\n'
 
+
 @pytest.mark.parametrize("tm", ["test/stop_signal2.ini"], indirect=True)
 def test_stop_signal2(tm):
 
     # ignore strings before first prompt
     tm.expect(r".*taskmaster> ")
-    
+
     output = get_ctl_result(tm, 'start sig_echo:0')
     print(output)
     assert output == 'sig_echo:0: started'
-    
+
     sleep(2)
     output = get_ctl_result(tm, 'stop sig_echo:0')
     print(output)
@@ -608,17 +603,18 @@ def test_stop_signal2(tm):
     with open('/tmp/sig_echo.log') as f:
         assert f.read() == 'TERM\n'
 
+
 @pytest.mark.parametrize("tm", ["test/stopwaitsecs1.ini"], indirect=True)
 def test_stopwaitsecs1(tm):
 
     # ignore strings before first prompt
     tm.expect(r".*taskmaster> ")
-    
+
     # restart process in running state
     output = get_ctl_result(tm, 'start ign_term:0')
     print(output)
     assert output == 'ign_term:0: started'
-    
+
     sleep(2)
     output = get_ctl_result(tm, 'stop ign_term:0')
     print(output)
@@ -631,7 +627,8 @@ def test_stopwaitsecs1(tm):
     sleep(3)
     output = get_ctl_result(tm, 'status')
     print(output)
-    assert re.match(r'ign_term:0\s+Stopped\s+\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d.\d\d\d', output)
+    assert re.match(
+        r'ign_term:0\s+Stopped\s+\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d.\d\d\d', output)
 
 
 @pytest.mark.parametrize("tm", ["test/stopwaitsecs2.ini"], indirect=True)
@@ -639,12 +636,12 @@ def test_stopwaitsecs2(tm):
 
     # ignore strings before first prompt
     tm.expect(r".*taskmaster> ")
-    
+
     # restart process in running state
     output = get_ctl_result(tm, 'start ign_term:0')
     print(output)
     assert output == 'ign_term:0: started'
-    
+
     sleep(2)
     output = get_ctl_result(tm, 'stop ign_term:0')
     print(output)
@@ -657,4 +654,64 @@ def test_stopwaitsecs2(tm):
     sleep(4)
     output = get_ctl_result(tm, 'status')
     print(output)
-    assert re.match(r'ign_term:0\s+Stopped\s+\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d.\d\d\d', output)
+    assert re.match(
+        r'ign_term:0\s+Stopped\s+\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d.\d\d\d', output)
+
+
+@pytest.mark.parametrize("tm", ["test/conf_directory.ini"], indirect=True)
+def test_conf_directory(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+
+    # start process
+    get_ctl_result(tm, 'start conf_directory:0')
+
+    sleep(1)
+
+    # check contents in log file
+    with open('test/conf_directory.log') as f:
+        contents = f.read()
+        print(contents)
+        assert contents == '/tmp\n'
+
+
+@pytest.mark.parametrize("tm", ["test/conf_environment.ini"], indirect=True)
+def test_conf_env(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+
+    # start process
+    get_ctl_result(tm, 'start conf_environment:0')
+
+    sleep(1)
+
+    with open('test/conf_environment.log') as f:
+        contents = f.read()
+
+        expected = [
+            r'A=1',
+            r'B=2',
+        ]
+        print(contents)
+        assert all(map(lambda x: re.search(x, contents) != None, expected))
+
+
+@pytest.mark.parametrize("tm", ["test/conf_user.ini"], indirect=True)
+def test_conf_env(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+
+    # start process
+    get_ctl_result(tm, 'start conf_user:0')
+
+    sleep(2)
+
+    with open('test/conf_user.log') as f:
+        contents = f.read()
+
+        print(contents)
+
+        assert f'{str(os.geteuid())}\n' == contents
