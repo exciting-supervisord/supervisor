@@ -67,23 +67,21 @@ def tm(request):
     yield pexpect.spawn(TMCTL, [request.param], timeout=TIMEOUT)
     cleanup()
 
-
 def overwrite(dst, src):
     with open(dst, 'w') as fdst:
         with open(src, 'r') as fsrc:
             fdst.write(fsrc.read())
-
 
 @pytest.fixture
 def varying_text(request):
     (filename, origin, modified) = request.param
 
     overwrite(filename, origin)
+    os.chmod(filename, 0o666)
 
     def change():
         overwrite(filename, modified)
-    return change
-
+    yield change
 
 @pytest.mark.parametrize("tm", ["test/status_before_begin.ini"], indirect=True)
 def test_status_not_begin(tm):
@@ -528,3 +526,135 @@ def test_update(varying_text, tm):
     print(output)
     # every process is not started yet
     assert re.match(r"b:0\s+Stopped\s+Not started", output)
+
+
+@pytest.mark.parametrize("tm", ["test/start_retries1.ini"], indirect=True)
+def test_start_retries1(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+    
+    # restart process in running state
+    output = get_ctl_result(tm, 'start dies:0')
+    print(output)
+    assert output == 'dies:0: started'
+    
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    assert re.match(r'dies:0\s+(Starting|Backoff\s+Exited too quickly.)', output)
+    
+    sleep(2)
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    assert re.match(r'dies:0\s+Fatal\s+Exited too quickly.', output)
+
+
+
+@pytest.mark.parametrize("tm", ["test/start_retries2.ini"], indirect=True)
+def test_start_retries2(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+    
+    # restart process in running state
+    output = get_ctl_result(tm, 'start dies:0')
+    print(output)
+    assert output == 'dies:0: started'
+    
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    assert re.match(r'dies:0\s+(Starting|Backoff\s+Exited too quickly.)', output)
+    
+    sleep(3)
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    assert re.match(r'dies:0\s+Fatal\s+Exited too quickly.', output)
+
+@pytest.mark.parametrize("tm", ["test/stop_signal1.ini"], indirect=True)
+def test_stop_signal1(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+    
+    output = get_ctl_result(tm, 'start sig_echo:0')
+    print(output)
+    assert output == 'sig_echo:0: started'
+    
+    sleep(2)
+    output = get_ctl_result(tm, 'stop sig_echo:0')
+    print(output)
+    assert output == 'sig_echo:0: stopping'
+
+    sleep(1)
+    with open('/tmp/sig_echo.log') as f:
+        assert f.read() == 'INT\n'
+
+@pytest.mark.parametrize("tm", ["test/stop_signal2.ini"], indirect=True)
+def test_stop_signal2(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+    
+    output = get_ctl_result(tm, 'start sig_echo:0')
+    print(output)
+    assert output == 'sig_echo:0: started'
+    
+    sleep(2)
+    output = get_ctl_result(tm, 'stop sig_echo:0')
+    print(output)
+    assert output == 'sig_echo:0: stopping'
+
+    sleep(1)
+    with open('/tmp/sig_echo.log') as f:
+        assert f.read() == 'TERM\n'
+
+@pytest.mark.parametrize("tm", ["test/stopwaitsecs1.ini"], indirect=True)
+def test_stopwaitsecs1(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+    
+    # restart process in running state
+    output = get_ctl_result(tm, 'start ign_term:0')
+    print(output)
+    assert output == 'ign_term:0: started'
+    
+    sleep(2)
+    output = get_ctl_result(tm, 'stop ign_term:0')
+    print(output)
+    assert output == 'ign_term:0: stopping'
+
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    assert re.match(r'ign_term:0\s+Stopping', output)
+
+    sleep(3)
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    assert re.match(r'ign_term:0\s+Stopped\s+\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d.\d\d\d', output)
+
+
+@pytest.mark.parametrize("tm", ["test/stopwaitsecs2.ini"], indirect=True)
+def test_stopwaitsecs2(tm):
+
+    # ignore strings before first prompt
+    tm.expect(r".*taskmaster> ")
+    
+    # restart process in running state
+    output = get_ctl_result(tm, 'start ign_term:0')
+    print(output)
+    assert output == 'ign_term:0: started'
+    
+    sleep(2)
+    output = get_ctl_result(tm, 'stop ign_term:0')
+    print(output)
+    assert output == 'ign_term:0: stopping'
+
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    assert re.match(r'ign_term:0\s+Stopping', output)
+
+    sleep(4)
+    output = get_ctl_result(tm, 'status')
+    print(output)
+    assert re.match(r'ign_term:0\s+Stopped\s+\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d.\d\d\d', output)

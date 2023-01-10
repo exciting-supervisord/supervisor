@@ -122,8 +122,8 @@ impl Process {
         let mut stdout_path = conf.stdout_logfile.to_owned();
         let mut stderr_path = conf.stderr_logfile.to_owned();
 
-        stdout_path.push('\0');
         stderr_path.push('\0');
+        stdout_path.push('\0');
 
         let v_uid = Process::get_uid(&conf.user);
         let v_umask = conf.umask.unwrap_or(0o022);
