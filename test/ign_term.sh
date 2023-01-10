@@ -2,4 +2,6 @@
 
 trap '' SIGTERM
 
-exec sleep infinity
+while true; do
+    sleep 1
+done
