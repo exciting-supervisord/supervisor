@@ -121,12 +121,8 @@ impl IProcess for Process {
 
 impl Process {
     fn new_command(conf: &ProgramConfig) -> Result<Command, RpcError> {
-        let mut stdout_path = conf.stdout_logfile.to_owned();
-        let mut stderr_path = conf.stderr_logfile.to_owned();
-
-        stderr_path.push('\0');
-        stdout_path.push('\0');
-
+        let stdout_path = conf.stdout_logfile.to_owned();
+        let stderr_path = conf.stderr_logfile.to_owned();
         let v_uid = Process::get_uid(&conf.user);
         let v_umask = conf.umask.unwrap_or(0o022);
         let directory = conf.directory.clone();
@@ -141,23 +137,36 @@ impl Process {
             cmd.pre_exec(move || {
                 setuid(Uid::from_raw(v_uid))?;
                 umask(Mode::from_bits(v_umask).unwrap());
-                let stderr_ptr = stderr_path.as_ptr() as *const c_char;
-                let stdout_ptr = stdout_path.as_ptr() as *const c_char;
-                let stderr = open(stderr_ptr, O_WRONLY | O_TRUNC | O_CREAT, 0o777);
-                let stdout = open(stdout_ptr, O_WRONLY | O_TRUNC | O_CREAT, 0o777);
-                if stdout < 0 || stderr < 0 || dup2(stderr, 2) < 0 || dup2(stdout, 1) < 0 {
-                    LOG.crit(&format!(
-                        "setting logfile failed: {stdout_path}: {stdout}, {stderr_path}: {stderr}"
-                    ));
-                    return Err(std::io::Error::new(
-                        ErrorKind::Other,
-                        format!("can not spawn"),
-                    ));
-                }
+                Process::open_logfiles(stdout_path.to_owned(), stderr_path.to_owned())?;
                 set_current_dir(directory.to_owned())
             });
         }
         Ok(cmd)
+    }
+
+    fn open_logfiles(
+        mut stdout_path: String,
+        mut stderr_path: String,
+    ) -> Result<(), std::io::Error> {
+        stderr_path.push('\0');
+        stdout_path.push('\0');
+
+        unsafe {
+            let stderr_ptr = stderr_path.as_ptr() as *const c_char;
+            let stdout_ptr = stdout_path.as_ptr() as *const c_char;
+            let stderr = open(stderr_ptr, O_WRONLY | O_TRUNC | O_CREAT, 0o777);
+            let stdout = open(stdout_ptr, O_WRONLY | O_TRUNC | O_CREAT, 0o777);
+            if stdout < 0 || stderr < 0 || dup2(stderr, 2) < 0 || dup2(stdout, 1) < 0 {
+                LOG.crit(&format!(
+                    "setting logfile failed: {stdout_path}: {stdout}, {stderr_path}: {stderr}"
+                ));
+                return Err(std::io::Error::new(
+                    ErrorKind::Other,
+                    format!("can not spawn"),
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn get_uid(user_name: &Option<String>) -> u32 {
