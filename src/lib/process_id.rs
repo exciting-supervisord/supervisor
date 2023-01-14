@@ -15,3 +15,23 @@ impl std::fmt::Display for ProcessId {
         write!(f, "{}:{}", self.name, self.seq)
     }
 }
+
+pub trait ToProcessIds {
+    fn to_process_ids(&self) -> Vec<ProcessId>
+    where
+        Self: IntoIterator<Item = String>;
+}
+
+impl ToProcessIds for Vec<String> {
+    fn to_process_ids(&self) -> Vec<ProcessId>
+    where
+        Self: IntoIterator<Item = String>,
+    {
+        self.iter()
+            .map(|x| {
+                let (name, seq) = x.split_once(":").expect("return Invalid argument");
+                ProcessId::new(name.to_owned(), seq.parse::<u32>().expect("parse fail"))
+            })
+            .collect::<Vec<ProcessId>>()
+    }
+}
