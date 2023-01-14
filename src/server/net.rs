@@ -1,6 +1,6 @@
 use lib::logger::LOG;
 use lib::request::Request;
-use lib::response::{Error as RpcError, Response};
+use lib::response::{Response, RpcError};
 
 use serde::Deserialize;
 use serde_json;

@@ -1,31 +1,55 @@
+use super::process_status::ProcessStatus;
 use serde::{Deserialize, Serialize};
 
-use super::process_status::ProcessStatus;
+pub type CommandResult = Result<RpcOutput, RpcError>;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum Response {
-    Action(Action),
+    Command(Vec<CommandResult>),
     Status(Vec<ProcessStatus>),
 }
 
 impl Response {
-    pub fn from_output(out: OutputMessage) -> Self {
-        let mut res = Action::new();
-        res.add_element(Ok(out));
-        Response::Action(res)
+    pub fn from_output(out: RpcOutput) -> Self {
+        let mut res = Vec::new();
+        res.push(Ok(out));
+        Response::Command(res)
     }
 
-    pub fn from_err(err: Error) -> Self {
-        let mut res = Action::new();
-        res.add_element(Err(err));
-        Response::Action(res)
+    pub fn from_err(err: RpcError) -> Self {
+        let mut res = Vec::new();
+        res.push(Err(err));
+        Response::Command(res)
+    }
+}
+
+impl std::ops::Add for Response {
+    type Output = Response;
+    fn add(mut self, rhs: Self) -> Self::Output {
+        match self {
+            Response::Command(ref mut v1) => match rhs {
+                Response::Command(mut v2) => v1.append(&mut v2),
+                Response::Status(_) => panic!("logic error"),
+            },
+            Response::Status(ref mut v1) => match rhs {
+                Response::Command(_) => panic!("logic error"),
+                Response::Status(mut v2) => v1.append(&mut v2),
+            },
+        }
+        self
     }
 }
 
 impl std::fmt::Display for Response {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
-            Response::Action(ref act) => write!(f, "{act}"),
+            Response::Command(ref v) => {
+                v.iter().for_each(|cmd_res| match *cmd_res {
+                    Ok(ref o) => write!(f, "{o}\n").unwrap_or_default(),
+                    Err(ref e) => write!(f, "{e}\n").unwrap_or_default(),
+                });
+                Ok(())
+            }
             Response::Status(ref v) => {
                 v.iter().for_each(|status| {
                     write!(f, "{}\n", status).unwrap_or_default();
@@ -36,56 +60,8 @@ impl std::fmt::Display for Response {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct Action {
-    pub list: Vec<Result<OutputMessage, Error>>,
-}
-
-impl Action {
-    pub fn new() -> Self {
-        Action { list: Vec::new() }
-    }
-
-    pub fn add_element(&mut self, res: Result<OutputMessage, Error>) {
-        self.list.push(res);
-    }
-}
-
-impl std::ops::Add for Action {
-    type Output = Action;
-    fn add(mut self, other: Action) -> Action {
-        other.list.into_iter().for_each(|x| self.add_element(x));
-        self
-    }
-}
-
-impl FromIterator<Result<OutputMessage, Error>> for Action {
-    fn from_iter<T: IntoIterator<Item = Result<OutputMessage, Error>>>(iter: T) -> Self {
-        let mut res = Action::new();
-
-        for i in iter {
-            res.list.push(i);
-        }
-        res
-    }
-}
-
-impl std::fmt::Display for Action {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.list.iter().for_each(|one| match one {
-            Ok(o) => {
-                write!(f, "{}\n", o).unwrap_or_default();
-            }
-            Err(e) => {
-                write!(f, "{}\n", e).unwrap_or_default();
-            }
-        });
-        Ok(())
-    }
-}
-
 #[derive(Debug, Deserialize, Serialize)]
-pub enum Error {
+pub enum RpcError {
     FileFormat(String),
     FileOpenError(String),
     Service(String),
@@ -96,61 +72,61 @@ pub enum Error {
     ProcessSpawnError(String),
 }
 
-impl Error {
+impl RpcError {
     pub fn file_format(s: &str) -> Self {
-        Error::FileFormat(s.to_owned())
+        RpcError::FileFormat(s.to_owned())
     }
 
     pub fn file_open(s: &str) -> Self {
-        Error::FileOpenError(s.to_owned())
+        RpcError::FileOpenError(s.to_owned())
     }
 
     pub fn service(s: &str) -> Self {
-        Error::Service(s.to_owned())
+        RpcError::Service(s.to_owned())
     }
 
     pub fn invalid_request(s: &str) -> Self {
-        Error::InvalidRequest(s.to_owned())
+        RpcError::InvalidRequest(s.to_owned())
     }
 
     pub fn spawn(s: &str) -> Self {
-        Error::ProcessSpawnError(s.to_owned())
+        RpcError::ProcessSpawnError(s.to_owned())
     }
 }
 
-impl std::fmt::Display for Error {
+impl std::fmt::Display for RpcError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::FileFormat(ref s) => write!(f, "{s}: Invalid configuraion file."),
-            Error::FileOpenError(ref s) => write!(f, "{s}: can not open file."),
-            Error::Service(ref s) => write!(f, "{s}: Service not available."),
-            Error::InvalidRequest(ref s) => write!(f, "Invalid Request: {s}"),
-            Error::ProcessNotFound(ref s) => write!(f, "{s}: no such process."),
-            Error::ProcessNotRunning(ref s) => write!(f, "{s}: not running."),
-            Error::ProcessAlreadyStarted(ref s) => write!(f, "{s}: already started."),
-            Error::ProcessSpawnError(ref s) => write!(f, "{s}: can not spawn process."),
+            RpcError::FileFormat(ref s) => write!(f, "{s}: Invalid configuraion file."),
+            RpcError::FileOpenError(ref s) => write!(f, "{s}: can not open file."),
+            RpcError::Service(ref s) => write!(f, "{s}: Service not available."),
+            RpcError::InvalidRequest(ref s) => write!(f, "Invalid Request: {s}"),
+            RpcError::ProcessNotFound(ref s) => write!(f, "{s}: no such process."),
+            RpcError::ProcessNotRunning(ref s) => write!(f, "{s}: not running."),
+            RpcError::ProcessAlreadyStarted(ref s) => write!(f, "{s}: already started."),
+            RpcError::ProcessSpawnError(ref s) => write!(f, "{s}: can not spawn process."),
         }
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for RpcError {}
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct OutputMessage {
+pub struct RpcOutput {
     name: String,
     message: String,
 }
 
-impl OutputMessage {
+impl RpcOutput {
     pub fn new(name: &str, message: &str) -> Self {
-        OutputMessage {
+        RpcOutput {
             name: name.to_string(),
             message: message.to_string(),
         }
     }
 }
 
-impl std::fmt::Display for OutputMessage {
+impl std::fmt::Display for RpcOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.name, self.message)
     }

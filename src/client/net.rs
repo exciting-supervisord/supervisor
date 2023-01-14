@@ -68,7 +68,7 @@ impl Net {
         let responses = serde_json::from_str::<Response>(&line)?;
 
         match responses {
-            Response::Action(act) => act.list.iter().for_each(|res| match res {
+            Response::Command(res) => res.iter().for_each(|res| match res {
                 Ok(o) => println!("{o}"),
                 Err(e) => eprintln!("{e}"),
             }),
