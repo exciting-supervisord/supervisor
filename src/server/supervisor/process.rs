@@ -5,12 +5,14 @@ use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::time::Instant;
 
-use lib::config::{AutoRestart, ProcessConfig, ProgramConfig};
+use lib::config::{
+    autorestart::AutoRestart, process_config::ProcessConfig, program_config::ProgramConfig,
+};
 use lib::logger::Logger;
 use lib::logger::LOG;
 use lib::process_id::ProcessId;
 use lib::process_status::{ProcessState, ProcessStatus};
-use lib::response::{Error as RpcError, OutputMessage as RpcOutput};
+use lib::response::{RpcError, RpcOutput};
 
 use nix::libc::{dup2, getpwnam, getuid, open};
 use nix::sys::signal::{self, Signal};
@@ -49,9 +51,9 @@ impl IProcess for Process {
         ProcessId::new(self.id.name.to_owned(), self.id.seq)
     }
 
-    fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError> {
+    fn new(config: &ProgramConfig, seq: u32) -> Result<Process, RpcError> {
         let command = Process::new_command(config)?;
-        let id = ProcessId::new(config.name.to_owned(), index);
+        let id = ProcessId::new(config.name.to_owned(), seq);
         let process = Process {
             id,
             command,
