@@ -1,4 +1,4 @@
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct ProcessId {
     pub name: String,
     pub seq: u32,
@@ -17,16 +17,14 @@ impl std::fmt::Display for ProcessId {
 }
 
 pub trait ToProcessIds {
-    fn to_process_ids(&self) -> Vec<ProcessId>
-    where
-        Self: IntoIterator<Item = String>;
+    fn to_process_ids(&self, list: impl IntoIterator<Item = ProcessId>) -> Vec<ProcessId>;
 }
 
 impl ToProcessIds for Vec<String> {
-    fn to_process_ids(&self) -> Vec<ProcessId>
-    where
-        Self: IntoIterator<Item = String>,
-    {
+    fn to_process_ids(&self, list: impl IntoIterator<Item = ProcessId>) -> Vec<ProcessId> {
+        if self.contains(&String::from("all")) {
+            return Vec::from_iter(list);
+        }
         self.iter()
             .map(|x| {
                 let (name, seq) = x.split_once(":").expect("return Invalid argument");

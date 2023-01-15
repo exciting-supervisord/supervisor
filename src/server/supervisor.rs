@@ -13,20 +13,6 @@ use lib::response::{CommandResult, Response as RpcResponse, RpcError, RpcOutput}
 use super::control;
 use process::*;
 
-pub trait ISupervisor {
-    fn sockfile(&self) -> &str;
-    fn new(file_path: &str, config: Config) -> Result<Supervisor, Box<dyn std::error::Error>>;
-    fn supervise(&mut self) -> Result<(), Box<dyn std::error::Error>>;
-    fn start(&mut self, names: Vec<String>) -> RpcResponse;
-    fn stop(&mut self, names: Vec<String>) -> RpcResponse;
-    fn restart(&mut self, names: Vec<String>) -> RpcResponse;
-    fn update(&mut self, _: Vec<String>) -> RpcResponse;
-    fn cleanup_processes(&mut self);
-    fn status(&self, names: Vec<String>) -> RpcResponse;
-    fn reload(&mut self, _: Vec<String>) -> RpcResponse;
-    fn shutdown(&mut self, _: Vec<String>) -> RpcResponse;
-}
-
 pub struct Supervisor {
     file_path: String,
     config: Config,
@@ -34,12 +20,12 @@ pub struct Supervisor {
     trashes: Vec<Process>,
 }
 
-impl ISupervisor for Supervisor {
-    fn sockfile(&self) -> &str {
+impl Supervisor {
+    pub fn sockfile(&self) -> &str {
         &self.config.general.sockfile
     }
 
-    fn new(file_path: &str, config: Config) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(file_path: &str, config: Config) -> Result<Self, Box<dyn std::error::Error>> {
         let mut supervisor = Supervisor {
             file_path: file_path.to_owned(),
             config,
@@ -53,7 +39,7 @@ impl ISupervisor for Supervisor {
         Ok(supervisor)
     }
 
-    fn supervise(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn supervise(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         for (_, process) in self.processes.iter_mut() {
             process.run()?;
         }
@@ -61,21 +47,21 @@ impl ISupervisor for Supervisor {
         Ok(())
     }
 
-    fn start(&mut self, names: Vec<String>) -> RpcResponse {
+    pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
         LOG.info(&format!("handle request - start, names={:?}", names));
-        let ids = names.to_process_ids();
+        let ids = names.to_process_ids(self.config.process_list().into_iter());
         self.start_processes(ids.iter())
     }
 
-    fn stop(&mut self, names: Vec<String>) -> RpcResponse {
+    pub fn stop(&mut self, names: Vec<String>) -> RpcResponse {
         LOG.info(&format!("handle request - stop, names={:?}", names));
-        let process_ids = names.to_process_ids();
+        let process_ids = names.to_process_ids(self.config.process_list().into_iter());
         self.stop_processes(process_ids.iter())
     }
 
-    fn restart(&mut self, names: Vec<String>) -> RpcResponse {
+    pub fn restart(&mut self, names: Vec<String>) -> RpcResponse {
         LOG.info(&format!("handle request - stop, names={:?}", names));
-        let ids = names.to_process_ids();
+        let ids = names.to_process_ids(self.config.process_list().into_iter());
 
         let res1 = self.stop_processes(ids.iter());
         self.remove_processes(ids.iter());
@@ -83,7 +69,7 @@ impl ISupervisor for Supervisor {
         res1 + res2
     }
 
-    fn update(&mut self, _: Vec<String>) -> RpcResponse {
+    pub fn update(&mut self, _: Vec<String>) -> RpcResponse {
         LOG.info("handle request - update");
         let next_conf = match Config::from(&self.file_path) {
             Ok(o) => o,
@@ -94,7 +80,7 @@ impl ISupervisor for Supervisor {
         RpcResponse::from_output(RpcOutput::new("configuration", "updated"))
     }
 
-    fn cleanup_processes(&mut self) {
+    pub fn cleanup_processes(&mut self) {
         let keys: Vec<ProcessId> = self.processes.iter().map(|(k, _)| k.to_owned()).collect();
 
         self.stop_processes(keys.iter());
@@ -105,10 +91,12 @@ impl ISupervisor for Supervisor {
         }
     }
 
-    fn status(&self, names: Vec<String>) -> RpcResponse {
+    pub fn status(&self, mut names: Vec<String>) -> RpcResponse {
         LOG.info("handle request - status");
-
-        let ids = names.to_process_ids();
+        if names.is_empty() {
+            names.push("all".to_owned());
+        }
+        let ids = names.to_process_ids(self.config.process_list().into_iter());
         let v: Vec<ProcessStatus> = ids
             .iter()
             .map(|id| self.processes.get(id).unwrap().get_status())
@@ -116,7 +104,7 @@ impl ISupervisor for Supervisor {
         RpcResponse::Status(v)
     }
 
-    fn reload(&mut self, _: Vec<String>) -> RpcResponse {
+    pub fn reload(&mut self, _: Vec<String>) -> RpcResponse {
         LOG.info("handle request - reload");
         self.cleanup_processes();
 
@@ -127,14 +115,12 @@ impl ISupervisor for Supervisor {
         RpcResponse::from_output(RpcOutput::new("taskmasterd", "reload"))
     }
 
-    fn shutdown(&mut self, _: Vec<String>) -> RpcResponse {
+    pub fn shutdown(&mut self, _: Vec<String>) -> RpcResponse {
         LOG.info("handle request - shutdown");
         control::SHUTDOWN.store(true, Ordering::Relaxed);
         RpcResponse::from_output(RpcOutput::new("taskmasterd", "shutdown"))
     }
-}
 
-impl Supervisor {
     fn garbage_collect(&mut self) {
         self.trashes
             .iter_mut()
@@ -181,8 +167,9 @@ impl Supervisor {
 
     fn remove_processes<'a>(&mut self, process_ids: impl Iterator<Item = &'a ProcessId>) {
         process_ids.for_each(|id| {
-            let process = self.processes.remove(id).unwrap();
-            self.trashes.push(process);
+            if let Some(process) = self.processes.remove(id) {
+                self.trashes.push(process);
+            }
         });
     }
 

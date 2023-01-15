@@ -8,7 +8,7 @@ use lib::logger::LOG;
 use lib::{CONF_FILE, LOG_FILE};
 
 use net::UdsRpcServer;
-use supervisor::{ISupervisor, Supervisor};
+use supervisor::Supervisor;
 
 use core::cell::RefCell;
 use std::env;
