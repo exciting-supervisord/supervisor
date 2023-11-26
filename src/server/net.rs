@@ -1,5 +1,5 @@
 use lib::logger::LOG;
-use lib::request::Request;
+use lib::request::{Procedure, ReqMethod, Request};
 use lib::response::{Error as RpcError, Response};
 
 use serde::Deserialize;
@@ -12,16 +12,22 @@ use std::fs::set_permissions;
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
-pub struct UdsRpcServer<'a> {
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+
+pub struct UdsRpcServer<ARG> {
     listener: UnixListener,
-    methods: HashMap<String, Box<dyn FnMut(Vec<String>) -> Response + 'a>>,
+    methods: HashMap<String, Procedure<ARG>>,
+    validator: Option<fn(&Request) -> Result<ARG, RpcError>>,
 }
 
-impl<'a> UdsRpcServer<'a> {
+impl<ARG: 'static + Default> UdsRpcServer<ARG> {
     pub fn new(path: &str) -> Result<Self, Box<dyn Error>> {
         let server = UdsRpcServer {
             listener: UnixListener::bind(path)?,
             methods: HashMap::new(),
+            validator: None,
         };
         server.listener.set_nonblocking(true)?;
         set_permissions(path, Permissions::from_mode(0o600))?;
@@ -31,68 +37,51 @@ impl<'a> UdsRpcServer<'a> {
 
     pub fn add_method<F>(&mut self, key: &str, method: F)
     where
-        F: FnMut(Vec<String>) -> Response + 'a,
+        F: (Fn(ARG) -> Response) + 'static + Sync + Send,
     {
-        self.methods.insert(key.to_string(), Box::new(method));
+        self.methods.insert(key.to_string(), Arc::new(method));
     }
 
-    fn get_method(&mut self, key: &str) -> &mut Box<dyn FnMut(Vec<String>) -> Response + 'a> {
-        self.methods.get_mut(key).unwrap()
+    pub fn set_validator(&mut self, validator: fn(&Request) -> Result<ARG, RpcError>) {
+        self.validator = Some(validator)
     }
 
-    fn exec_method(&mut self, req: Request) -> Response {
-        let method = self.get_method(&req.method);
-        method(req.args)
-    }
-
-    fn get_request(&self, socket: &UnixStream) -> Result<Request, RpcError> {
+    fn get_request(&self, socket: &UnixStream) -> Result<ReqMethod<ARG>, RpcError> {
         let mut deserializer = serde_json::Deserializer::from_reader(socket);
+
         let req = Request::deserialize(&mut deserializer).map_err(|e| {
             LOG.warn(&format!("failed to receive request - {e}"));
             RpcError::service("request not received")
         })?; // FIXME 타임아웃..?
 
-        if let None = self.methods.get(&req.method) {
-            LOG.warn(&format!("unknown method found - {}", &req.method));
-            return Err(RpcError::invalid_request("method"));
-        }
-
-        if req.method != "open" {
-            if let Err(e) = self.args_validation(&req.args) {
-                LOG.warn(&format!(
-                    "invalid argument for given method - method={}, argument={:?}",
+        let method = match self.methods.get(&req.method) {
+            Some(m) => {
+                LOG.info(&format!(
+                    "new request received - method={}, argument={:?}",
                     &req.method, &req.args
                 ));
-                return Err(e);
+                Ok(m.clone())
             }
-        }
+            None => {
+                LOG.warn(&format!("unknown method found - {}", &req.method));
+                Err(RpcError::invalid_request("method"))
+            }
+        }?;
 
-        LOG.info(&format!(
-            "new request received - method={}, argument={:?}",
-            &req.method, &req.args
-        ));
-        Ok(req)
+        let args = self.validate_request(&req)?;
+
+        Ok(ReqMethod::new(method, args))
     }
 
-    fn args_validation(&self, args: &Vec<String>) -> Result<(), RpcError> {
-        for a in args {
-            if a == "all" {
-                continue;
-            }
-
-            match a.split_once(":") {
-                None => return Err(RpcError::invalid_request("argument")),
-                Some((_, seq)) => {
-                    if let Err(_) = seq.parse::<u32>() {
-                        return Err(RpcError::invalid_request(a));
-                    }
-                }
-            }
+    fn validate_request(&self, args: &Request) -> Result<ARG, RpcError> {
+        if let Some(v) = self.validator.as_ref() {
+            v(args)
+        } else {
+            Ok(ARG::default())
         }
-        Ok(())
     }
 
-    fn handle_client(&mut self, socket: &UnixStream) {
+    fn handle_client(&self, socket: &UnixStream) {
         let req = match self.get_request(socket) {
             Ok(o) => o,
             Err(e) => {
@@ -105,7 +94,7 @@ impl<'a> UdsRpcServer<'a> {
             }
         };
 
-        let res = self.exec_method(req);
+        let res = req.run();
         if let Err(e) = serde_json::to_writer(socket, &res) {
             LOG.warn(&format!(
                 "fail to resoponse to client - response={}, error={e}",
@@ -119,17 +108,22 @@ impl<'a> UdsRpcServer<'a> {
         LOG.info(&format!("request handled - response=\n{}", res));
     }
 
-    pub fn try_handle_client(&mut self) -> bool {
-        if let Ok((ref socket, ..)) = self.listener.accept() {
-            self.handle_client(socket);
-            true
+    pub fn accept_client(self: &Arc<Self>) {
+        if let Ok((socket, ..)) = self.listener.accept() {
+            let this = self.clone();
+
+            thread::spawn(move || {
+                this.handle_client(&socket);
+            });
         } else {
-            false
+            thread::sleep(Duration::from_millis(lib::EVENT_LOOP_TIME));
         }
     }
 }
 
-impl Drop for UdsRpcServer<'_> {
+unsafe impl<A> Send for UdsRpcServer<A> {}
+
+impl<A> Drop for UdsRpcServer<A> {
     fn drop(&mut self) {
         let socket_file = self.listener.local_addr().unwrap();
         let socket_file = socket_file.as_pathname().unwrap();

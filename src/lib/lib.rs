@@ -11,7 +11,7 @@ pub const LOG_FILE: &'static str = "/tmp/taskmaster.log";
 pub const TM_VERSION: &'static str = "0.0.1";
 pub const EVENT_LOOP_TIME: u64 = 50;
 
-pub fn exit_with_error(err: Box<dyn std::error::Error>) -> ! {
+pub fn exit_with_log(err: Box<dyn std::error::Error>) -> ! {
     logger::LOG.crit(&format!("{err}"));
     std::process::exit(1)
 }

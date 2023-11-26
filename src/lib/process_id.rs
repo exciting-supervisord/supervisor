@@ -1,4 +1,4 @@
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct ProcessId {
     pub name: String,
     pub seq: u32,

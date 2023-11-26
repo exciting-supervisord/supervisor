@@ -27,9 +27,9 @@ impl std::fmt::Display for Response {
         match *self {
             Response::Action(ref act) => write!(f, "{act}"),
             Response::Status(ref v) => {
-                v.iter().for_each(|status| {
-                    write!(f, "{}\n", status).unwrap_or_default();
-                });
+                for stat in v {
+                    write!(f, "{}\n", stat)?;
+                }
                 Ok(())
             }
         }
@@ -72,14 +72,16 @@ impl FromIterator<Result<OutputMessage, Error>> for Action {
 
 impl std::fmt::Display for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.list.iter().for_each(|one| match one {
-            Ok(o) => {
-                write!(f, "{}\n", o).unwrap_or_default();
+        for one in self.list.iter() {
+            match one {
+                Ok(o) => {
+                    write!(f, "{}\n", o)?;
+                }
+                Err(e) => {
+                    write!(f, "{}\n", e)?;
+                }
             }
-            Err(e) => {
-                write!(f, "{}\n", e).unwrap_or_default();
-            }
-        });
+        }
         Ok(())
     }
 }
