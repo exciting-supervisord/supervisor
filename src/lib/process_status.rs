@@ -42,21 +42,6 @@ impl ToString for ProcessState {
     }
 }
 
-// impl std::fmt::Display for ProcessState {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             Self::Stopped => write!(f, "Stopped"),
-//             Self::Starting => write!(f, "Starting"),
-//             Self::Running => write!(f, "Running"),
-//             Self::Backoff => write!(f, "Backoff"),
-//             Self::Stopping => write!(f, "Stopping"),
-//             Self::Exited => write!(f, "Exited"),
-//             Self::Fatal => write!(f, "Fatal"),
-//             Self::Unknown => write!(f, "Unknown"),
-//         }
-//     }
-// }
-
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ProcessStatus {
     name: String,

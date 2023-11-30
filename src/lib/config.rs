@@ -28,7 +28,7 @@ pub struct ProcessConfig {
 }
 
 impl ProcessConfig {
-    pub fn from(conf: &ProgramConfig) -> Self {
+    pub fn from_program_config(conf: &ProgramConfig) -> Self {
         ProcessConfig {
             autostart: conf.autostart,
             autorestart: conf.autorestart,
@@ -129,7 +129,7 @@ impl ProgramConfig {
             "PIPE" => Ok(Signal::SIGPIPE),
             "ALRM" => Ok(Signal::SIGALRM),
             "TERM" => Ok(Signal::SIGTERM),
-            "STKFLT" => Ok(Signal::SIGSTKFLT),
+            // "STKFLT" => Ok(Signal::SIGSTKFLT),
             "CHLD" => Ok(Signal::SIGCHLD),
             "CONT" => Ok(Signal::SIGCONT),
             "TSTP" => Ok(Signal::SIGTSTP),
@@ -142,7 +142,7 @@ impl ProgramConfig {
             "PROF" => Ok(Signal::SIGPROF),
             "WINCH" => Ok(Signal::SIGWINCH),
             "IO" => Ok(Signal::SIGIO),
-            "PWR" => Ok(Signal::SIGPWR),
+            // "PWR" => Ok(Signal::SIGPWR),
             "SYS" => Ok(Signal::SIGSYS),
             _ => Err(ConfigValueError::new(k, v)),
         }

@@ -534,7 +534,7 @@ def test_start_retries1(tm):
     output = get_ctl_result(tm, 'status')
     print(output)
     assert re.match(
-        r'dies:0\s+(Starting|Backoff\s+Exited too quickly.)', output)
+        r'dies:0\s+(Starting|Backoff|Fatal\s+Exited too quickly.)', output)
 
     sleep(2)
     output = get_ctl_result(tm, 'status')

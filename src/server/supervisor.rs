@@ -1,19 +1,77 @@
 mod process;
 
 use std::collections::HashMap;
+use std::error::Error;
+use std::mem::MaybeUninit;
 use std::sync::atomic::Ordering;
+use std::sync::{Mutex, MutexGuard};
 use std::vec::Vec;
 
 use lib::config::{Config, ProgramConfig};
 use lib::logger::LOG;
 use lib::process_id::ProcessId;
 use lib::process_status::ProcessStatus;
+use lib::request::Request;
 use lib::response::{
     Action, Error as RpcError, OutputMessage as RpcOutput, Response as RpcResponse,
 };
 
+use crate::net::UdsRpcServer;
+
 use super::control;
 use process::*;
+
+pub type SupvArg = Vec<ProcessId>;
+
+static mut SUPERVISOR: MaybeUninit<Mutex<Supervisor>> = MaybeUninit::uninit();
+
+pub fn init(conf_file: &str, conf: Config) -> Result<(), Box<dyn Error>> {
+    let supervisor = Supervisor::new(conf_file, conf)?;
+
+    unsafe { SUPERVISOR.write(Mutex::new(supervisor)) };
+
+    Ok(())
+}
+
+fn supervisor<'a>() -> MutexGuard<'a, Supervisor> {
+    unsafe {
+        SUPERVISOR
+            .assume_init_ref()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+pub fn supervise() -> Result<(), Box<dyn Error>> {
+    supervisor().supervise()
+}
+
+pub fn update() {
+    supervisor().update(Vec::new());
+}
+
+pub fn cleanup_processes() {
+    supervisor().cleanup_processes()
+}
+
+pub fn register_rpc<'a>(server: &'a mut UdsRpcServer<SupvArg>) {
+    let status = |args| supervisor().status(args);
+    let start = |args| supervisor().start(args);
+    let stop = |args| supervisor().stop(args);
+    let shutdown = |args| supervisor().shutdown(args);
+    let reload = |args| supervisor().reload(args);
+    let update = |args| supervisor().update(args);
+    let restart = |args| supervisor().restart(args);
+
+    server.set_validator(|req| supervisor().validate(req));
+    server.add_method("status", status);
+    server.add_method("start", start);
+    server.add_method("stop", stop);
+    server.add_method("shutdown", shutdown);
+    server.add_method("reload", reload);
+    server.add_method("update", update);
+    server.add_method("restart", restart);
+}
 
 pub struct Supervisor {
     file_path: String,
@@ -23,11 +81,7 @@ pub struct Supervisor {
 }
 
 impl Supervisor {
-    pub fn sockfile(&self) -> &str {
-        &self.config.general.sockfile
-    }
-
-    pub fn new(file_path: &str, config: Config) -> Result<Self, Box<dyn std::error::Error>> {
+    fn new(file_path: &str, config: Config) -> Result<Self, Box<dyn std::error::Error>> {
         let mut sp = Supervisor {
             file_path: file_path.to_owned(),
             config: Default::default(),
@@ -44,7 +98,15 @@ impl Supervisor {
         Ok(sp)
     }
 
-    pub fn supervise(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn validate(&self, req: &Request) -> Result<SupvArg, RpcError> {
+        if req.method == "status" && req.args.is_empty() {
+            self.convert_to_process_ids(&vec![String::from("all")])
+        } else {
+            self.convert_to_process_ids(&req.args)
+        }
+    }
+
+    fn supervise(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         for (_, process) in self.processes.iter_mut() {
             process.run()?;
         }
@@ -59,13 +121,8 @@ impl Supervisor {
         self.trashes.retain(|p| !p.is_stopped());
     }
 
-    pub fn start(&mut self, names: Vec<String>) -> RpcResponse {
-        LOG.info(&format!("handle request - start, names={:?}", names));
-        let inputs = if names.contains(&String::from("all")) {
-            Vec::from_iter(self.config.process_list().into_iter())
-        } else {
-            self.convert_to_process_ids(&names)
-        };
+    fn start(&mut self, inputs: SupvArg) -> RpcResponse {
+        LOG.info(&format!("handle request - start, names={:?}", inputs));
 
         let act = inputs
             .iter()
@@ -74,13 +131,8 @@ impl Supervisor {
         RpcResponse::Action(act)
     }
 
-    pub fn stop(&mut self, names: Vec<String>) -> RpcResponse {
-        LOG.info(&format!("handle request - stop, names={:?}", names));
-        let inputs = if names.contains(&String::from("all")) {
-            Vec::from_iter(self.config.process_list().into_iter())
-        } else {
-            self.convert_to_process_ids(&names)
-        };
+    fn stop(&mut self, inputs: SupvArg) -> RpcResponse {
+        LOG.info(&format!("handle request - stop, names={:?}", inputs));
 
         let act = inputs
             .iter()
@@ -89,42 +141,33 @@ impl Supervisor {
         RpcResponse::Action(act)
     }
 
-    pub fn restart(&mut self, names: Vec<String>) -> RpcResponse {
-        LOG.info(&format!("handle request - stop, names={:?}", names));
-        let inputs = if names.contains(&String::from("all")) {
-            Vec::from_iter(self.config.process_list().into_iter())
-        } else {
-            self.convert_to_process_ids(&names)
-        };
+    fn restart(&mut self, inputs: SupvArg) -> RpcResponse {
+        LOG.info(&format!("handle request - stop, names={:?}", inputs));
 
         let act = inputs
             .iter()
             .map(|process_id| {
-                if !self.config.process_list().contains(process_id) {
-                    return Err(RpcError::ProcessNotFound(process_id.to_string()));
+                if let Some(mut process) = self.processes.remove(process_id) {
+                    let ret = process.stop();
+                    self.trashes.push(process);
+                    ret
+                } else {
+                    Err(RpcError::ProcessNotFound(process_id.to_string()))
                 }
-                let mut process = self.processes.remove(process_id).unwrap();
-                let ret = process.stop();
-                self.trashes.push(process);
-                ret
             })
             .collect::<Action>();
 
         let act2 = inputs
             .iter()
             .map(|process_id| {
-                if !self.config.process_list().contains(process_id) {
-                    Err(RpcError::ProcessNotFound(process_id.to_string()))
+                if let Some(conf) = self.config.programs.get(&process_id.name) {
+                    Process::new(conf, process_id.seq).and_then(|mut p| {
+                        let ret = p.start();
+                        self.processes.insert(p.get_id(), p);
+                        ret
+                    })
                 } else {
-                    let conf = self.config.programs.get(&process_id.name).unwrap();
-                    match Process::new(conf, process_id.seq) {
-                        Err(e) => Err(e),
-                        Ok(mut p) => {
-                            let ret = p.start();
-                            self.processes.insert(p.get_id(), p);
-                            ret
-                        }
-                    }
+                    Err(RpcError::ProcessNotFound(process_id.to_string()))
                 }
             })
             .collect::<Action>();
@@ -133,7 +176,7 @@ impl Supervisor {
     }
 
     // Reload() -> ()
-    pub fn reload(&mut self, _: Vec<String>) -> RpcResponse {
+    fn reload(&mut self, _: SupvArg) -> RpcResponse {
         LOG.info("handle request - reload");
         self.cleanup_processes();
 
@@ -145,16 +188,17 @@ impl Supervisor {
     }
 
     //     Shutdown() -> ()
-    pub fn shutdown(&mut self, _: Vec<String>) -> RpcResponse {
+    fn shutdown(&mut self, _: SupvArg) -> RpcResponse {
         LOG.info("handle request - shutdown");
         control::SHUTDOWN.store(true, Ordering::Relaxed);
         RpcResponse::from_output(RpcOutput::new("taskmasterd", "shutdown"))
     }
 
     fn remove_process(&mut self, process_id: &ProcessId) -> Result<(), RpcError> {
-        let mut process = self.processes.remove(process_id).unwrap();
-        process.stop()?;
-        self.trashes.push(process);
+        if let Some(mut proc) = self.processes.remove(process_id) {
+            proc.stop()?;
+            self.trashes.push(proc);
+        }
         Ok(())
     }
 
@@ -164,11 +208,16 @@ impl Supervisor {
             process.start()?;
         }
         self.processes.insert(process.get_id(), process);
+
         Ok(())
     }
 
     fn revive_process(&mut self, process_id: &ProcessId) -> Result<(), RpcError> {
-        let conf = self.config.programs.get(&process_id.name).unwrap();
+        let conf = self
+            .config
+            .programs
+            .get(&process_id.name)
+            .ok_or_else(|| RpcError::ProcessNotFound(process_id.to_string()))?;
 
         let mut process = Process::new(conf, process_id.seq)?;
         if conf.autostart {
@@ -196,7 +245,7 @@ impl Supervisor {
         }
 
         for process_id in turn_off {
-            self.remove_process(&process_id).unwrap_or_default();
+            let _ = self.remove_process(&process_id);
         }
 
         for process_id in turn_on {
@@ -206,7 +255,7 @@ impl Supervisor {
         }
     }
 
-    pub fn update(&mut self, _: Vec<String>) -> RpcResponse {
+    fn update(&mut self, _: SupvArg) -> RpcResponse {
         LOG.info("handle request - update");
         let next_conf = match Config::from(&self.file_path) {
             Ok(o) => o,
@@ -218,14 +267,23 @@ impl Supervisor {
         RpcResponse::from_output(RpcOutput::new("configuration", "updated"))
     }
 
-    fn convert_to_process_ids(&self, names: &Vec<String>) -> Vec<ProcessId> {
-        names
-            .iter()
-            .map(|x| {
-                let (name, seq) = x.split_once(":").expect("return Invalid argument");
-                ProcessId::new(name.to_owned(), seq.parse::<u32>().expect("parse fail"))
-            })
-            .collect::<Vec<ProcessId>>()
+    fn convert_to_process_ids(&self, names: &Vec<String>) -> Result<Vec<ProcessId>, RpcError> {
+        if names.contains(&String::from("all")) {
+            Ok(Vec::from_iter(self.config.process_list().into_iter()))
+        } else {
+            let mut v = Vec::new();
+            for n in names.iter() {
+                if let Some((name, seq)) = n
+                    .split_once(":")
+                    .and_then(|(name, seq)| seq.parse::<u32>().map(|seq| (name, seq)).ok())
+                {
+                    v.push(ProcessId::new(name.to_owned(), seq));
+                } else {
+                    return Err(RpcError::invalid_request("argument"));
+                }
+            }
+            Ok(v)
+        }
     }
 
     fn try_process_operation(
@@ -233,22 +291,18 @@ impl Supervisor {
         id: &ProcessId,
         operation: fn(id: &mut Process) -> Result<RpcOutput, RpcError>,
     ) -> Result<RpcOutput, RpcError> {
-        if !self.config.process_list().contains(id) {
-            return Err(RpcError::ProcessNotFound(id.to_string()));
+        if let Some(proc) = self.processes.get_mut(id) {
+            operation(proc)
+        } else {
+            Err(RpcError::ProcessNotFound(id.to_string()))
         }
-
-        let process = self
-            .processes
-            .get_mut(id)
-            .expect("running process must in processes");
-        operation(process)
     }
 
-    pub fn cleanup_processes(&mut self) {
+    fn cleanup_processes(&mut self) {
         let keys: Vec<ProcessId> = self.processes.iter().map(|(k, _)| k.to_owned()).collect();
 
         for key in keys {
-            self.remove_process(&key).unwrap_or_default();
+            let _ = self.remove_process(&key);
         }
 
         while self.trashes.len() != 0 {
@@ -258,27 +312,11 @@ impl Supervisor {
 
     // Status(Vec<name>) -> Result( Vec<ProcessStatus>, Error)
     // where Error: ServiceError + ProcessNotFoundError
-    pub fn status(&self, words: Vec<String>) -> RpcResponse {
+    fn status(&self, words: SupvArg) -> RpcResponse {
         LOG.info("handle request - status");
-        if words.contains(&String::from("all")) || words.len() == 0 {
-            let v: Vec<ProcessStatus> = self
-                .processes
-                .iter()
-                .map(|(_, proc)| proc.get_status())
-                .collect();
-            return RpcResponse::Status(v);
-        }
+        LOG.info(&format!("{:?}", words));
 
-        let ids: Vec<ProcessId> = words
-            .iter()
-            .map(|id| {
-                let (name, seq) = id.split_once(":").unwrap();
-                let seq = seq.parse::<u32>().unwrap();
-                ProcessId::new(name.to_owned(), seq)
-            })
-            .collect();
-
-        let v: Vec<ProcessStatus> = ids
+        let v: Vec<ProcessStatus> = words
             .iter()
             .map(|id| self.processes.get(id).unwrap().get_status())
             .collect();

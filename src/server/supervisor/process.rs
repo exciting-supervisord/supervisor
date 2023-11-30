@@ -21,16 +21,6 @@ use libc::{O_CREAT, O_TRUNC, O_WRONLY};
 
 const INIT_DESCRIPTION: &'static str = "Not started";
 
-pub trait IProcess {
-    fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError>;
-    fn start(&mut self) -> Result<RpcOutput, RpcError>;
-    fn stop(&mut self) -> Result<RpcOutput, RpcError>;
-    fn run(&mut self) -> Result<(), RpcError>;
-    fn is_stopped(&self) -> bool;
-    fn get_status(&self) -> ProcessStatus;
-    fn get_id(&self) -> ProcessId;
-}
-
 pub struct Process {
     pub proc: Option<Child>,
     pub command: Command,
@@ -44,12 +34,12 @@ pub struct Process {
     description: String,
 }
 
-impl IProcess for Process {
-    fn get_id(&self) -> ProcessId {
+impl Process {
+    pub fn get_id(&self) -> ProcessId {
         ProcessId::new(self.id.name.to_owned(), self.id.seq)
     }
 
-    fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError> {
+    pub fn new(config: &ProgramConfig, index: u32) -> Result<Process, RpcError> {
         let command = Process::new_command(config)?;
         let id = ProcessId::new(config.name.to_owned(), index);
         let process = Process {
@@ -62,38 +52,40 @@ impl IProcess for Process {
             stop_at: None,
             exit_status: None,
             description: String::from(INIT_DESCRIPTION),
-            conf: ProcessConfig::from(config),
+            conf: ProcessConfig::from_program_config(config),
         };
         Ok(process)
     }
 
-    fn start(&mut self) -> Result<RpcOutput, RpcError> {
+    pub fn start(&mut self) -> Result<RpcOutput, RpcError> {
         let id = self.id.to_string();
 
-        if !self.state.startable() {
-            return Err(RpcError::ProcessAlreadyStarted(id));
+        if self.state.startable() {
+            self.start_process()
+                .map(|_| RpcOutput::new(id.as_str(), "started"))
+        } else {
+            Err(RpcError::ProcessAlreadyStarted(id))
         }
-        self.start_process()
-            .map(|_| RpcOutput::new(id.as_str(), "started"))
     }
 
-    fn stop(&mut self) -> Result<RpcOutput, RpcError> {
+    pub fn stop(&mut self) -> Result<RpcOutput, RpcError> {
         let id = self.id.to_string();
 
-        if !self.state.stopable() {
-            return Err(RpcError::ProcessNotRunning(id));
+        if self.state.stopable() {
+            self.stop_at = Some(Instant::now());
+            self.goto(ProcessState::Stopping, format!(""));
+            self.send_signal(self.conf.stopsignal)
+                .map(|_| RpcOutput::new(id.as_str(), "stopping"))
+        } else {
+            Err(RpcError::ProcessNotRunning(id))
         }
-        self.stop_at = Some(Instant::now());
-        self.goto(ProcessState::Stopping, format!(""));
-        self.send_signal(self.conf.stopsignal)
-            .map(|_| RpcOutput::new(id.as_str(), "stopping"))
     }
 
-    fn is_stopped(&self) -> bool {
+    pub fn is_stopped(&self) -> bool {
         self.state == ProcessState::Stopped
     }
 
-    fn get_status(&self) -> ProcessStatus {
+    pub fn get_status(&self) -> ProcessStatus {
         ProcessStatus::new(
             self.id.name.to_owned(),
             self.id.seq,
@@ -102,7 +94,7 @@ impl IProcess for Process {
         )
     }
 
-    fn run(&mut self) -> Result<(), RpcError> {
+    pub fn run(&mut self) -> Result<(), RpcError> {
         match self.state {
             ProcessState::Starting => self.starting(),
             ProcessState::Running => self.running(),
@@ -138,11 +130,12 @@ impl Process {
         unsafe {
             cmd.pre_exec(move || {
                 setuid(Uid::from_raw(v_uid))?;
-                umask(Mode::from_bits(v_umask).unwrap());
+                umask(Mode::from_bits_truncate(v_umask));
                 let stderr_ptr = stderr_path.as_ptr() as *const c_char;
                 let stdout_ptr = stdout_path.as_ptr() as *const c_char;
                 let stderr = open(stderr_ptr, O_WRONLY | O_TRUNC | O_CREAT, 0o777);
                 let stdout = open(stdout_ptr, O_WRONLY | O_TRUNC | O_CREAT, 0o777);
+
                 if stdout < 0 || stderr < 0 || dup2(stderr, 2) < 0 || dup2(stdout, 1) < 0 {
                     LOG.crit(&format!(
                         "setting logfile failed: {stdout_path}: {stdout}, {stderr_path}: {stderr}"
@@ -192,7 +185,7 @@ impl Process {
             return Err(RpcError::spawn(e.to_string().as_str()));
         }
 
-        self.proc = Some(proc.unwrap());
+        self.proc = proc.ok();
         Ok(())
     }
 
