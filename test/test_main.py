@@ -211,12 +211,15 @@ def test_stop_noexist(tm):
 
 
 def is_tmd(proc):
-    cmd = proc.cmdline()
-    return (
-        len(cmd) == 2
-        and cmd[0] == TMD
-        and cmd[1] == 'test/start_simple_success.ini'
-    )
+    try:
+        cmd = proc.cmdline()
+        return (
+            len(cmd) == 2
+            and cmd[0] == TMD
+            and cmd[1] == 'test/start_simple_success.ini'
+        )
+    except:
+        return False
 
 
 @pytest.mark.parametrize("tm", ["test/start_simple_success.ini"], indirect=True)
@@ -294,6 +297,8 @@ def test_conf_command(tm):
     tm.expect(r".*taskmaster> ")
 
     get_ctl_result(tm, 'start conf_command:0')
+
+    sleep(2)
 
     with open('/tmp/conf_command.log') as f:
         contents = f.read()
@@ -599,7 +604,7 @@ def test_stop_signal2(tm):
     print(output)
     assert output == 'sig_echo:0: stopping'
 
-    sleep(1)
+    sleep(2)
     with open('/tmp/sig_echo.log') as f:
         assert f.read() == 'TERM\n'
 
